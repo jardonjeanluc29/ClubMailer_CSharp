@@ -1,20 +1,9 @@
 ﻿using System.Text;
 using System.Text.Json;
-using CsvHelper;
 using System.Globalization;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
-using System.ComponentModel.DataAnnotations;
-using System.Linq.Expressions;
-using System.Diagnostics;
-using Microsoft.VisualBasic;
 using CsvHelper.Configuration;
-using System.Net.NetworkInformation;
-using System.Text.RegularExpressions;
-using System.Security.Cryptography;
 using ClubMailer.Config;
 using MimeKit;
-using System.Text.Unicode;
 using MailKit;
 using MailKit.Security;
 using Microsoft.Extensions.Configuration;
@@ -246,13 +235,36 @@ if (string.IsNullOrWhiteSpace(smtpSettings.Password))
 {
     throw new Exception("La section Smtp.Password est manquante dans appsettings.json !");
 }
-Console.WriteLine($"Serveur {smtpSettings.Host} sur le PORT : {smtpSettings.Port} et avec la méthode : {smtpSettings.SecureSocketOptions.ToString() ?? "Non Défini"}.");
+Console.WriteLine($"Serveur {smtpSettings.Host} sur le PORT : {smtpSettings.Port} et avec la méthode : {smtpSettings.SecureSocketOptions?.ToString() ?? "Non Défini"}.");
 
 SmtpEmailSender facteur = new SmtpEmailSender(smtpSettings);
 MailboxAddress messageRecipient = new MailboxAddress(Encoding.UTF8, "Pauline", "pauline@gmail.com");
+string? courseDestinataire = listeParticipants
+.Where(p => StringComparer.OrdinalIgnoreCase.Equals("pauline@gmail.com", p.Email))
+// ALTERNATIVE .Where(p => string.Equals(/* premier texte */, /* deuxième texte */, /* mode de comparaison */))
+.Select(p => p.Course)
+.FirstOrDefault();
+Console.WriteLine(courseDestinataire ?? "Pas de DESTINATAIRE");
 MailboxAddress messageSender = new MailboxAddress(Encoding.UTF8, "Melody", smtpSettings.User);
 BodyBuilder bodybuilder = new BodyBuilder();
-bodybuilder.TextBody = "Bonjour, je m'appelle Jean-Luc et je vous envoie un email.";
+bodybuilder.TextBody = $"Bonjour cher <strong>{messageRecipient.Name}.\nCeci est le mail de rappel de votre inscription à la course : <strong>{courseDestinataire ?? "INCONNU"}";
+bodybuilder.HtmlBody = $"""
+<!DOCTYPE html>
+    <html lang="fr">
+        <head>
+            <meta charset="UTF-8">
+            <title> Inscription aux Ballades Bigoudènes </title>
+        </head>
+        
+        <body>
+            <hr><h1>Bonjour cher <strong>{messageRecipient.Name}</strong></h1><hr>
+            <p>
+                Ceci est le mail de rappel de votre inscription à la course : <strong>{courseDestinataire ?? "INCONNU"}</strong>.
+            </p>
+        </body>
+    </html>
+""";
+
 string subject = "urgent";
 MimeEntity body = bodybuilder.ToMessageBody();
 SendResult response = await facteur.SendEmail(messageRecipient, messageSender, subject, body);
