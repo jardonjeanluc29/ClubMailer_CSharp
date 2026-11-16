@@ -10,10 +10,11 @@
 using System;
 using System.Reflection;
 
+[assembly: Microsoft.Extensions.Configuration.UserSecrets.UserSecretsIdAttribute("e0ad9c9c-efdb-4864-b08b-cc0d428409f7")]
 [assembly: System.Reflection.AssemblyCompanyAttribute("ClubMailer")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+db56cfa417dd3350ebb916ca39bfd16218315111")]
 [assembly: System.Reflection.AssemblyProductAttribute("ClubMailer")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ClubMailer")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

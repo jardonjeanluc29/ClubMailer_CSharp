@@ -1,12 +1,26 @@
 {
   "version": 2,
-  "dgSpecHash": "oJ60iU71uW4=",
+  "dgSpecHash": "mNDN+OH6YoU=",
   "success": true,
   "projectFilePath": "C:\\Users\\kenoh\\ClubMailer\\ClubMailer.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\kenoh\\.nuget\\packages\\csvhelper\\33.0.1\\csvhelper.33.0.1.nupkg.sha512",
     "C:\\Users\\kenoh\\.nuget\\packages\\mailkit\\5.0.0\\mailkit.5.0.0.nupkg.sha512",
-    "C:\\Users\\kenoh\\.nuget\\packages\\mimekit.core\\5.0.0\\mimekit.core.5.0.0.nupkg.sha512"
+    "C:\\Users\\kenoh\\.nuget\\packages\\microsoft.extensions.configuration\\11.0.0\\microsoft.extensions.configuration.11.0.0.nupkg.sha512",
+    "C:\\Users\\kenoh\\.nuget\\packages\\microsoft.extensions.configuration.abstractions\\11.0.0\\microsoft.extensions.configuration.abstractions.11.0.0.nupkg.sha512",
+    "C:\\Users\\kenoh\\.nuget\\packages\\microsoft.extensions.configuration.binder\\11.0.0\\microsoft.extensions.configuration.binder.11.0.0.nupkg.sha512",
+    "C:\\Users\\kenoh\\.nuget\\packages\\microsoft.extensions.configuration.environmentvariables\\11.0.0\\microsoft.extensions.configuration.environmentvariables.11.0.0.nupkg.sha512",
+    "C:\\Users\\kenoh\\.nuget\\packages\\microsoft.extensions.configuration.fileextensions\\11.0.0\\microsoft.extensions.configuration.fileextensions.11.0.0.nupkg.sha512",
+    "C:\\Users\\kenoh\\.nuget\\packages\\microsoft.extensions.configuration.json\\11.0.0\\microsoft.extensions.configuration.json.11.0.0.nupkg.sha512",
+    "C:\\Users\\kenoh\\.nuget\\packages\\microsoft.extensions.configuration.usersecrets\\11.0.0\\microsoft.extensions.configuration.usersecrets.11.0.0.nupkg.sha512",
+    "C:\\Users\\kenoh\\.nuget\\packages\\microsoft.extensions.fileproviders.abstractions\\11.0.0\\microsoft.extensions.fileproviders.abstractions.11.0.0.nupkg.sha512",
+    "C:\\Users\\kenoh\\.nuget\\packages\\microsoft.extensions.fileproviders.physical\\11.0.0\\microsoft.extensions.fileproviders.physical.11.0.0.nupkg.sha512",
+    "C:\\Users\\kenoh\\.nuget\\packages\\microsoft.extensions.filesystemglobbing\\11.0.0\\microsoft.extensions.filesystemglobbing.11.0.0.nupkg.sha512",
+    "C:\\Users\\kenoh\\.nuget\\packages\\microsoft.extensions.primitives\\11.0.0\\microsoft.extensions.primitives.11.0.0.nupkg.sha512",
+    "C:\\Users\\kenoh\\.nuget\\packages\\mimekit.core\\5.0.0\\mimekit.core.5.0.0.nupkg.sha512",
+    "C:\\Users\\kenoh\\.nuget\\packages\\system.io.pipelines\\11.0.0\\system.io.pipelines.11.0.0.nupkg.sha512",
+    "C:\\Users\\kenoh\\.nuget\\packages\\system.text.encodings.web\\11.0.0\\system.text.encodings.web.11.0.0.nupkg.sha512",
+    "C:\\Users\\kenoh\\.nuget\\packages\\system.text.json\\11.0.0\\system.text.json.11.0.0.nupkg.sha512"
   ],
   "logs": []
 }
