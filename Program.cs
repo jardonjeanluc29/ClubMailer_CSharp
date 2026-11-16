@@ -16,6 +16,7 @@ using ClubMailer.Config;
 using MimeKit;
 using System.Text.Unicode;
 using MailKit;
+using Microsoft.Extensions.Configuration;
 
 
 Console.WriteLine($"Welcome in ClubMailer v0.1, nous sômmes le : {DateTime.Now}");
@@ -212,9 +213,40 @@ string jsonSerialisationListe = JsonSerializer.Serialize(listeEmails, optionSeri
 File.WriteAllText(cheminListeDiffusion, jsonSerialisationListe);
 
 
-SmtpEmailSender facteur = new SmtpEmailSender(ConfigEthereal.configEthereal);
+
+IConfiguration configuration = new ConfigurationBuilder()
+.SetBasePath(AppContext.BaseDirectory)
+.AddJsonFile("appsettings.json", optional: false)// optional: false Rend le fichier obligatoire.
+.AddUserSecrets<Program>()
+.AddEnvironmentVariables()
+.Build();
+
+SmtpSettings? smtpSettings = configuration
+.GetSection("Smtp")
+.Get<SmtpSettings>() ?? throw new InvalidOperationException("La section Smtp est manquante dans appsettings.json !");
+
+
+if (smtpSettings is null
+    || string.IsNullOrWhiteSpace(smtpSettings.Host)
+    || smtpSettings.Port <= 0)
+{
+    throw new InvalidOperationException(
+        "Configuration SMTP invalide : la section \"Smtp\" doit contenir un Host et un Port valides (appsettings.json).");
+}
+
+if (string.IsNullOrWhiteSpace(smtpSettings.User))
+{
+    throw new Exception("La section Smtp.User est manquante dans appsettings.json !");
+}
+if (string.IsNullOrWhiteSpace(smtpSettings.Password))
+{
+    throw new Exception("La section Smtp.Password est manquante dans appsettings.json !");
+}
+Console.WriteLine($"Serveur {smtpSettings.Host} sur le PORT : {smtpSettings.Port}.");
+
+SmtpEmailSender facteur = new SmtpEmailSender(smtpSettings);
 MailboxAddress messageRecipient = new MailboxAddress(Encoding.UTF8, "Pauline", "pauline@gmail.com");
-MailboxAddress messageSender = new MailboxAddress(Encoding.UTF8, "Melody", "melody97@ethereal.email");
+MailboxAddress messageSender = new MailboxAddress(Encoding.UTF8, "Melody", smtpSettings.User);
 BodyBuilder bodybuilder = new BodyBuilder();
 bodybuilder.TextBody = "Bonjour, je m'appelle Jean-Luc et je vous envoie un email.";
 string subject = "urgent";
