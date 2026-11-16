@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "dgSpecHash": "oJ60iU71uW4=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\kenoh\\ClubMailer\\ClubMailer.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\kenoh\\.nuget\\packages\\csvhelper\\33.0.1\\csvhelper.33.0.1.nupkg.sha512",
+    "C:\\Users\\kenoh\\.nuget\\packages\\mailkit\\5.0.0\\mailkit.5.0.0.nupkg.sha512",
+    "C:\\Users\\kenoh\\.nuget\\packages\\mimekit.core\\5.0.0\\mimekit.core.5.0.0.nupkg.sha512"
+  ],
+  "logs": []
+}
