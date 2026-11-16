@@ -254,6 +254,18 @@ MimeEntity body = bodybuilder.ToMessageBody();
 SendResult response = await facteur.SendEmail(messageRecipient, messageSender, subject, body);
 Console.WriteLine($"Réponse du serveur : {response.ResponseText}");
 
+if (response.ResponseText.Split(" ").Contains("Accepted"))
+{
+    string[] responseParts = response.ResponseText.Split("MSGID=");
+    if (responseParts.Count() > 1)
+    {
+        Console.WriteLine($"https://ethereal.email/message/{responseParts[1].Trim("]")}");
+        /** Variante :  string resultat = texte.Length > 0 ? texte[..^1] : texte; **/
+
+    }
+
+}
+
 if (response.RejectedRecipients.Count == 0)
 {
     string acceptes = string.Join(", ", response.AcceptedRecipients.Select(destinataire => destinataire.Address));
