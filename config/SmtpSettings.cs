@@ -1,5 +1,6 @@
 using System.Reflection;
 using CsvHelper;
+using MailKit.Security;
 namespace ClubMailer.Config;
 
 public record SmtpSettings
@@ -8,4 +9,5 @@ public record SmtpSettings
     public required int Port {get; init;}
     public string? User {get; init;}
     public string? Password {get; init;}
+    public SecureSocketOptions? SecureSocketOptions {get; init;}
 }

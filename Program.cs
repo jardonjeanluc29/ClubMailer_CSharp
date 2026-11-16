@@ -16,6 +16,7 @@ using ClubMailer.Config;
 using MimeKit;
 using System.Text.Unicode;
 using MailKit;
+using MailKit.Security;
 using Microsoft.Extensions.Configuration;
 
 
@@ -228,10 +229,13 @@ SmtpSettings? smtpSettings = configuration
 
 if (smtpSettings is null
     || string.IsNullOrWhiteSpace(smtpSettings.Host)
-    || smtpSettings.Port <= 0)
+    || smtpSettings.Port <= 0
+    || smtpSettings.SecureSocketOptions == SecureSocketOptions.Auto
+    || smtpSettings.SecureSocketOptions == SecureSocketOptions.None
+    || smtpSettings.SecureSocketOptions == SecureSocketOptions.StartTlsWhenAvailable)
 {
     throw new InvalidOperationException(
-        "Configuration SMTP invalide : la section \"Smtp\" doit contenir un Host et un Port valides (appsettings.json).");
+        "Configuration SMTP invalide : la section \"Smtp\" doit contenir un Host et un Port valides (appsettings.json) et un mode d'envoi sécurisé.");
 }
 
 if (string.IsNullOrWhiteSpace(smtpSettings.User))
@@ -242,7 +246,7 @@ if (string.IsNullOrWhiteSpace(smtpSettings.Password))
 {
     throw new Exception("La section Smtp.Password est manquante dans appsettings.json !");
 }
-Console.WriteLine($"Serveur {smtpSettings.Host} sur le PORT : {smtpSettings.Port}.");
+Console.WriteLine($"Serveur {smtpSettings.Host} sur le PORT : {smtpSettings.Port} et avec la méthode : {smtpSettings.SecureSocketOptions.ToString() ?? "Non Défini"}.");
 
 SmtpEmailSender facteur = new SmtpEmailSender(smtpSettings);
 MailboxAddress messageRecipient = new MailboxAddress(Encoding.UTF8, "Pauline", "pauline@gmail.com");

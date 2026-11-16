@@ -25,7 +25,8 @@ internal class SmtpEmailSender
 
         using var client = new SmtpClient();
 
-        SecureSocketOptions socketOptions = SecureSocketOptions.StartTls;
+        SecureSocketOptions socketOptions = _configSmtpClient.SecureSocketOptions ?? SecureSocketOptions.StartTls;
+       
 
         await client.ConnectAsync(_configSmtpClient.Host, _configSmtpClient.Port, socketOptions);
 
