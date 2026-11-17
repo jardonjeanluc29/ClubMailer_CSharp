@@ -7,6 +7,8 @@ using MimeKit;
 using MailKit;
 using MailKit.Security;
 using Microsoft.Extensions.Configuration;
+using System.Net.Sockets;
+
 
 
 Console.WriteLine($"Welcome in ClubMailer v0.1, nous sômmes le : {DateTime.Now}");
@@ -98,7 +100,7 @@ List<Participant> participantsRejetes = listeParticipants
 
 List<string> logging = [];
 
-string chemingLogRejet = "email_rejets.log";
+string chemingLogRejet = Path.Combine(AppContext.BaseDirectory,"email_rejets.log");
 
 foreach (var ligne in participantsRejetes)
 {
@@ -185,7 +187,7 @@ IEnumerable<Participant> tousLesParticipants =
 List<Participant> listeEmails = listeGroupBy
 .SelectMany(groupe => groupe)
 .Where(p => !string.IsNullOrWhiteSpace(p.Email))
-.DistinctBy(p => p.Email, StringComparer.OrdinalIgnoreCase)
+.DistinctBy(p => (p.Email!.ToLowerInvariant(), p.Course.ToLowerInvariant()))
 .ToList();
 
 foreach (var p in listeEmails)
@@ -229,7 +231,7 @@ if (smtpSettings is null
 
 if (string.IsNullOrWhiteSpace(smtpSettings.User))
 {
-    throw new Exception("La section Smtp.User est manquante dans appsettings.json !");
+    throw new Exception($"La section Smtp.User est manquante dans appsettings.json !");
 }
 if (string.IsNullOrWhiteSpace(smtpSettings.Password))
 {
@@ -238,57 +240,63 @@ if (string.IsNullOrWhiteSpace(smtpSettings.Password))
 Console.WriteLine($"Serveur {smtpSettings.Host} sur le PORT : {smtpSettings.Port} et avec la méthode : {smtpSettings.SecureSocketOptions?.ToString() ?? "Non Défini"}.");
 
 SmtpEmailSender facteur = new SmtpEmailSender(smtpSettings);
-MailboxAddress messageRecipient = new MailboxAddress(Encoding.UTF8, "Pauline", "pauline@gmail.com");
-string? courseDestinataire = listeParticipants
-.Where(p => StringComparer.OrdinalIgnoreCase.Equals("pauline@gmail.com", p.Email))
-// ALTERNATIVE .Where(p => string.Equals(/* premier texte */, /* deuxième texte */, /* mode de comparaison */))
-.Select(p => p.Course)
-.FirstOrDefault();
-Console.WriteLine(courseDestinataire ?? "Pas de DESTINATAIRE");
+
 MailboxAddress messageSender = new MailboxAddress(Encoding.UTF8, "Melody", smtpSettings.User);
-BodyBuilder bodybuilder = new BodyBuilder();
-bodybuilder.TextBody = $"Bonjour cher <strong>{messageRecipient.Name}.\nCeci est le mail de rappel de votre inscription à la course : <strong>{courseDestinataire ?? "INCONNU"}";
-bodybuilder.HtmlBody = $"""
-<!DOCTYPE html>
-    <html lang="fr">
-        <head>
-            <meta charset="UTF-8">
-            <title> Inscription aux Ballades Bigoudènes </title>
-        </head>
-        
-        <body>
-            <hr><h1>Bonjour cher <strong>{messageRecipient.Name}</strong></h1><hr>
-            <p>
-                Ceci est le mail de rappel de votre inscription à la course : <strong>{courseDestinataire ?? "INCONNU"}</strong>.
-            </p>
-        </body>
-    </html>
-""";
 
-string subject = "urgent";
-MimeEntity body = bodybuilder.ToMessageBody();
-SendResult response = await facteur.SendEmail(messageRecipient, messageSender, subject, body);
-Console.WriteLine($"Réponse du serveur : {response.ResponseText}");
-
-if (response.ResponseText.Split(" ").Contains("Accepted"))
+foreach (var p in listeEmails)
 {
-    string[] responseParts = response.ResponseText.Split("MSGID=");
-    if (responseParts.Count() > 1)
-    {
-        Console.WriteLine($"https://ethereal.email/message/{responseParts[1].Trim("]")}");
-        /** Variante :  string resultat = texte.Length > 0 ? texte[..^1] : texte; **/
+    if (p.Email is null) { Console.WriteLine($"[Erreur]Le mail du participant {p.NomComplet} est absent."); continue; }
+    MailboxAddress messageRecipient = new MailboxAddress(Encoding.UTF8, p.NomComplet, p.Email);
 
+    BodyBuilder bodybuilder = new BodyBuilder();
+    bodybuilder.TextBody = MailBodyBuilder.BuildText(p);
+    bodybuilder.HtmlBody = MailBodyBuilder.BuildHtml(p);
+    string subject = "Les Balades Bigoudènes 2027";
+    MimeEntity body = bodybuilder.ToMessageBody();
+    try
+    {
+        SendResult response = await facteur.SendEmail(messageRecipient, messageSender, subject, body);
+        Console.WriteLine($"Réponse du serveur : {response.ResponseText}");
+        if (response.ResponseText.Split(" ").Contains("Accepted"))
+        {
+            string[] responseParts = response.ResponseText.Split("MSGID=");
+            if (responseParts.Count() > 1)
+            {
+                Console.WriteLine($"https://ethereal.email/message/{responseParts[1].TrimEnd(']')}");
+                /** Variante :  string resultat = texte.Length > 0 ? texte[..^1] : texte; **/
+            }
+        }
+        if (response.RejectedRecipients.Count == 0)
+        {
+            string acceptes = string.Join(", ", response.AcceptedRecipients.Select(destinataire => destinataire.Address));
+            Console.WriteLine($"Envoi effectué pour : {acceptes}");
+        }
+        else
+        {
+            string refuses = string.Join(", ", response.RejectedRecipients.Select(destinataire => destinataire.Address));
+            Console.WriteLine($"Destinataire(s) refusé(s) : {refuses}");
+        }
+    } catch (AuthenticationException authEx)
+    {
+        Console.WriteLine($"Identifiants SMTP refusés (User ou Password incorrect(s)) : {authEx.Message}.");
+        SendingErrorLog.WriteSendingErrorsLog(authEx, p);
+        break;
+    } catch (SocketException sockEx)
+    {
+        Console.WriteLine($"Serveur non accessible : {sockEx.Message}.");
+        SendingErrorLog.WriteSendingErrorsLog(sockEx, p);
+        break;
+    } catch (Exception ex)
+    {
+        Console.WriteLine($"La procédure d'envoi d'email n'a pas pu aboutir : {ex.Message}.");
+        SendingErrorLog.WriteSendingErrorsLog(ex, p);
+    }
+    finally
+    {
+        Console.WriteLine($"Fin de la procédure d'envoi d'email pour {p.NomComplet}.");
     }
 
 }
 
-if (response.RejectedRecipients.Count == 0)
-{
-    string acceptes = string.Join(", ", response.AcceptedRecipients.Select(destinataire => destinataire.Address));
-    Console.WriteLine($"Envoi effectué pour : {acceptes}");
-}
-else
-{
-    string refuses = string.Join(", ", response.RejectedRecipients.Select(destinataire => destinataire.Address));
-    Console.WriteLine($"Destinataire(s) refusé(s) : {refuses}");
-}
+
+
