@@ -100,7 +100,8 @@ List<Participant> participantsRejetes = listeParticipants
 
 List<string> logging = [];
 
-string chemingLogRejet = Path.Combine(AppContext.BaseDirectory,"email_rejets.log");
+// A décommenter plus tard  string chemingLogRejet = Path.Combine(AppContext.BaseDirectory, "email_invalide.log");
+string chemingLogRejet = "email_invalide.log";
 
 foreach (var ligne in participantsRejetes)
 {
@@ -221,12 +222,13 @@ SmtpSettings? smtpSettings = configuration
 if (smtpSettings is null
     || string.IsNullOrWhiteSpace(smtpSettings.Host)
     || smtpSettings.Port <= 0
+    || string.IsNullOrWhiteSpace(smtpSettings.Sender)
     || smtpSettings.SecureSocketOptions == SecureSocketOptions.Auto
     || smtpSettings.SecureSocketOptions == SecureSocketOptions.None
     || smtpSettings.SecureSocketOptions == SecureSocketOptions.StartTlsWhenAvailable)
 {
     throw new InvalidOperationException(
-        "Configuration SMTP invalide : la section \"Smtp\" doit contenir un Host et un Port valides (appsettings.json) et un mode d'envoi sécurisé.");
+        "Configuration SMTP invalide : la section \"Smtp\" doit contenir un Host / Port / Sender valides (appsettings.json) et un mode d'envoi sécurisé.");
 }
 
 if (string.IsNullOrWhiteSpace(smtpSettings.User))
@@ -241,22 +243,29 @@ Console.WriteLine($"Serveur {smtpSettings.Host} sur le PORT : {smtpSettings.Port
 
 SmtpEmailSender facteur = new SmtpEmailSender(smtpSettings);
 
-MailboxAddress messageSender = new MailboxAddress(Encoding.UTF8, "Melody", smtpSettings.User);
+MailboxAddress messageSender = new MailboxAddress(Encoding.UTF8, smtpSettings.Sender, smtpSettings.User);
+
+int compteurAccepted = 0;
+int compteurRejeted = 0;
+int compteurSansEmail = 0;
+int compteurErreur = 0;
+
 
 foreach (var p in listeEmails)
 {
-    if (p.Email is null) { Console.WriteLine($"[Erreur]Le mail du participant {p.NomComplet} est absent."); continue; }
+    if (p.Email is null) { Console.WriteLine($"[Erreur]Le mail du participant {p.NomComplet} est absent."); compteurSansEmail++; continue; }
     MailboxAddress messageRecipient = new MailboxAddress(Encoding.UTF8, p.NomComplet, p.Email);
-
     BodyBuilder bodybuilder = new BodyBuilder();
     bodybuilder.TextBody = MailBodyBuilder.BuildText(p);
     bodybuilder.HtmlBody = MailBodyBuilder.BuildHtml(p);
     string subject = "Les Balades Bigoudènes 2027";
     MimeEntity body = bodybuilder.ToMessageBody();
+
     try
     {
         SendResult response = await facteur.SendEmail(messageRecipient, messageSender, subject, body);
         Console.WriteLine($"Réponse du serveur : {response.ResponseText}");
+        //Partie pour ETHEREAL SEULEMENT : 
         if (response.ResponseText.Split(" ").Contains("Accepted"))
         {
             string[] responseParts = response.ResponseText.Split("MSGID=");
@@ -266,28 +275,37 @@ foreach (var p in listeEmails)
                 /** Variante :  string resultat = texte.Length > 0 ? texte[..^1] : texte; **/
             }
         }
+        // FIN PARTIE ETHEREAL
         if (response.RejectedRecipients.Count == 0)
         {
+            compteurAccepted++;
             string acceptes = string.Join(", ", response.AcceptedRecipients.Select(destinataire => destinataire.Address));
             Console.WriteLine($"Envoi effectué pour : {acceptes}");
         }
         else
         {
+            compteurRejeted++;
             string refuses = string.Join(", ", response.RejectedRecipients.Select(destinataire => destinataire.Address));
             Console.WriteLine($"Destinataire(s) refusé(s) : {refuses}");
         }
-    } catch (AuthenticationException authEx)
+    }
+    catch (AuthenticationException authEx)
     {
+        compteurErreur++;
         Console.WriteLine($"Identifiants SMTP refusés (User ou Password incorrect(s)) : {authEx.Message}.");
         SendingErrorLog.WriteSendingErrorsLog(authEx, p);
         break;
-    } catch (SocketException sockEx)
+    }
+    catch (SocketException sockEx)
     {
+        compteurErreur++;
         Console.WriteLine($"Serveur non accessible : {sockEx.Message}.");
         SendingErrorLog.WriteSendingErrorsLog(sockEx, p);
         break;
-    } catch (Exception ex)
+    }
+    catch (Exception ex)
     {
+        compteurErreur++;
         Console.WriteLine($"La procédure d'envoi d'email n'a pas pu aboutir : {ex.Message}.");
         SendingErrorLog.WriteSendingErrorsLog(ex, p);
     }
@@ -295,8 +313,10 @@ foreach (var p in listeEmails)
     {
         Console.WriteLine($"Fin de la procédure d'envoi d'email pour {p.NomComplet}.");
     }
-
 }
+int compteurNoneTreated = listeEmails.Count - (compteurRejeted + compteurAccepted + compteurErreur + compteurSansEmail);
+string compteRendu = $"Mails à envoyer : {listeEmails.Count}.\nMails envoyés : {compteurAccepted}.\nMails Rejetés : {compteurRejeted}.\nMails non traités : {compteurNoneTreated}.\nÉchecs d'envoi : {compteurErreur}.\nEmail absent : {compteurSansEmail}.";
+Console.WriteLine(compteRendu);
 
 
 

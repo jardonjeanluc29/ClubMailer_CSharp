@@ -8,4 +8,6 @@ public record SmtpSettings
     public string? User {get; init;}
     public string? Password {get; init;}
     public SecureSocketOptions? SecureSocketOptions {get; init;}
+
+    public string? Sender {get; init;}
 }
