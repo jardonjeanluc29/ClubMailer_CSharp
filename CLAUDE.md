@@ -18,6 +18,13 @@ Ce fichier `CLAUDE.md` ne contient que les repères minimaux ci-dessous — un f
 - Windows, clavier AZERTY/FR, VS Code en français — raccourci du terminal intégré : `Ctrl+Shift+ù`
 - Projet jumeau en Python (apprentissage en parallèle, sessions toujours séparées) : voir le skill `tuteur-python-clubmailer`, dossier `C:\Users\kenoh\clubmailerpy`
 
+## Sécurité des envois (règle absolue, même sans le skill)
+
+- Ne lancer `dotnet run` ou le `.exe` que si le mode effectif est sans risque : `Envoi:Mode` = `Simulation`, ou `Test` avec `Smtp:Host` = `smtp.ethereal.email` (Ethereal capture les mails, ne les remet à personne). Tant que `Envoi:Mode` n'existe pas : seulement si le Host effectif est `smtp.ethereal.email`.
+- Vérifier avant : `appsettings.json`, les variables d'environnement `Smtp__Host` / `Envoi__Mode` (`Get-ChildItem Env:Smtp__*, Env:Envoi__*`), et les **clés** des user-secrets (jamais leurs valeurs, jamais `dotnet user-secrets list`).
+- Dans le doute, ne pas lancer : dire pourquoi et donner la commande à Jean-Luc.
+- Toute réponse qui propose un changement pouvant déclencher de vrais envois commence, sous l'étiquette, par **⚠️ ENVOIS RÉELS**.
+
 ## Mémoire de session : voir `AVANCEMENT.md`
 
 Relancer VS Code ou une session Claude Code démarre une conversation sans aucune mémoire de la précédente — exactement comme un `/clear`. Le skill et ce `CLAUDE.md` donnent le cadre général (toujours le même), mais pas l'état précis du projet à un instant donné (quel module, qu'est-ce qui a été fait, quelle est la prochaine étape). C'est le rôle du fichier `AVANCEMENT.md`, à la racine de ce dossier.
