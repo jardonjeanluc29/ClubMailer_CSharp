@@ -4,7 +4,7 @@ Ce fichier est lu automatiquement par Claude Code à chaque session démarrée d
 
 ## Cadre pédagogique complet : voir le skill `tuteur-csharp-clubmailer`
 
-Le profil de l'utilisateur (Jean-Luc), les règles pédagogiques (expliquer chaque outil/commande avant usage, relier au JavaScript, laisser l'utilisateur écrire le code en premier, pratiques pro dès le début avec le "pourquoi" systématique...) et la feuille de route complète des modules (0 à 13) sont définis dans le skill Claude `tuteur-csharp-clubmailer`, rattaché au compte de l'utilisateur.
+Le profil de l'utilisateur (Jean-Luc), les règles pédagogiques (expliquer chaque outil/commande avant usage, relier au JavaScript, laisser l'utilisateur écrire le code en premier, pratiques pro dès le début avec le "pourquoi" systématique...) et la feuille de route complète des modules (0 à 21) sont définis dans le skill Claude `tuteur-csharp-clubmailer`, rattaché au compte de l'utilisateur.
 
 **Toujours charger et appliquer ce skill pour ce projet.** Ne pas improviser le contenu d'un module, ne pas redemander le profil de l'utilisateur, ne pas deviner la feuille de route : tout est déjà défini dans ce skill.
 

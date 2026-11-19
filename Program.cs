@@ -7,11 +7,17 @@ using MimeKit;
 using MailKit;
 using MailKit.Security;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using System.Net.Sockets;
 
+using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
+{
+    builder.AddConsole();
+    builder.SetMinimumLevel(LogLevel.Information);
+});
+ILogger logger = loggerFactory.CreateLogger("ClubMailer");
 
-
-Console.WriteLine($"Welcome in ClubMailer v0.1, nous sômmes le : {DateTime.Now}");
+logger.LogInformation($"Welcome in ClubMailer v0.1, nous sômmes le : {DateTime.Now}");
 
 //string? premiereLigne = fichierStreamReader.ReadLine();
 string cheminCsv = "participants.csv";
@@ -39,52 +45,12 @@ using var csv = new CsvHelper.CsvReader(fichierStreamReader, config, false);
 
 
 List<Participant> listeParticipants = csv.GetRecords<Participant>().ToList();
-/*foreach (var ligne in listeParticipants)
-{
-    //Console.WriteLine("Foreach Finale, extraction de la liste crée");
-    Console.WriteLine(ligne);
-}*/
-
-// Ancienne version sans contrôle 
-// List<Participant> listeNoDoublons = listeParticipants.DistinctBy<Participant, string?>(participant => participant.Email).ToList();
-/*List<Participant> listeAvecEmailNoDoublons = listeParticipants
-.Where<Participant>(participant => !string.IsNullOrWhiteSpace(participant.Email))
-.DistinctBy<Participant, string?>(participant => participant.Email, StringComparer.OrdinalIgnoreCase)
-.ToList();
-/*foreach (var ligne in listeNoDoublons)
-{
-    Console.WriteLine($"{ligne} inscrit à la course : {ligne.Course}");
-}*/
-
 
 
 
 // Je veux lmettre les "sans temps" en dernier : 
-Console.WriteLine($"NOMBRE PARTICIPANTS DEPART : {listeParticipants.Count}");
+logger.LogInformation("NOMBRE PARTICIPANTS DEPART : {NombreParticipants}",listeParticipants.Count);
 
-
-
-/*List<Participant> listeParticipantsAvecEmail = listeAvecEmailNoDoublons
-.Where<Participant>(p => !string.IsNullOrWhiteSpace(p.Email))
-.OrderBy(p => p.Temps.HasValue ? 0 : 1)
-.ThenBy(p => p.Temps)
-.ToList();
-Console.WriteLine($"Liste Participants (il y en a : {listeParticipantsAvecEmail.Count}) avec Emails : ");
-/*foreach (var ligne in listeParticipantsAvecEmail)
-{
-    Console.WriteLine($"|--{ligne}--|--COURSE : |--{ligne.Course}--|-- TEMPS : --|-- {ligne.Temps}--|-- {ligne.Email}--|");
-}*/
-/*List<Participant> listeParticipantsSansEmail = listeParticipants
-.Where<Participant>(p => string.IsNullOrWhiteSpace(p.Email))
-.OrderBy(p => p.Temps.HasValue ? 0 : 1)
-.ThenBy(p => p.Temps)
-.ToList();
-Console.WriteLine($"Liste Participants (il y en a : {listeParticipantsSansEmail.Count}) sans Emails : ");
-/*foreach (var ligne in listeParticipantsSansEmail)
-{
-    int nbreChamps = ligne.GetType().GetProperties().Count();
-    Console.WriteLine($"|--Nbre Champs : {nbreChamps} --|-- {ligne}--|--COURSE : |--{ligne.Course}--|-- TEMPS : --|-- {ligne.Temps}--|-- {ligne.Email}--|");
-}*/
 
 // On va utiliser la méthode native de .net pour valider la presence d'email (valide) ou non 
 
@@ -116,50 +82,21 @@ foreach (var ligne in participantsRejetes)
     logging.Add($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")} | {enumResult} | {ligne.NomComplet} | {result}");
 }
 File.AppendAllLines(chemingLogRejet, logging);
-/*foreach (var ligne in listeParticipants)
-{
-    ResultatEmail resultat = ValidationEmail.IsEmailValid(ligne.Email);
-    string resultatEmail =  resultat switch 
-    {
-        ResultatEmail.FormatInvalide    => "Format d'email invalide !",
-        ResultatEmail.Valide            => "Email Valide !",
-        ResultatEmail.Vide              => "Email Absent !",
-        _                               => "Cas Inconnu"
-    };
-    
-            Console.WriteLine($"{ligne.NomComplet}{resultat} {resultatEmail}");
-}*/
 
-/*
-Console.WriteLine($"Liste Participants avec Methode EMAILVALID (NBRE : {listeAvecEmailValide.Count}) AVEC Emails VALIDER : ");
-foreach (var ligne in listeAvecEmailValide)
-{
-    int nbreChamps = ligne.GetType().GetProperties().Count();
-    Console.WriteLine($"|--Nbre Champs : {nbreChamps} --|-- {ligne}--|--COURSE : |--{ligne.Course}--|-- TEMPS : --|-- {ligne.Temps}--|-- {ligne.Email}--|");
-}*/
 
 List<List<Participant>> listeParCourse = listeParticipants
 .Where<Participant>(p => !string.IsNullOrWhiteSpace(p.Course))
 .GroupBy(p => p.Course, StringComparer.OrdinalIgnoreCase)
 .Select(gr => gr.ToList())
 .ToList();
-Console.WriteLine($"\n\n\n\\");
-/*foreach (var liste in listeParCourse)
-{
-    // Je me sert du premier de chaque sous liste pour recuperer le nom de la course (chaque sous liste est un groupe par course)
-    Console.WriteLine($"VARIABLE LISTE : {liste[0].Course}");
-    foreach (var p in liste)
-    {
-        Console.WriteLine($"PARTICIPANT LISTE : {p}");
-    }
-}*/
+Console.WriteLine($"\n\\");
+
 
 List<Participant> listeParCourseSimple = listeParticipants
 .Where<Participant>(p => !string.IsNullOrWhiteSpace(p.Course))
 .OrderBy(p => p.Course, StringComparer.OrdinalIgnoreCase)
 .ThenBy(p => p.Nom)
 .ToList();
-Console.WriteLine($"\n\n\\");
 
 /*foreach (var p in listeParCourseSimple)
 {
@@ -205,14 +142,14 @@ var optionSerialisation = new JsonSerializerOptions
 string jsonSerialisationListe = JsonSerializer.Serialize(listeEmails, optionSerialisation);
 File.WriteAllText(cheminListeDiffusion, jsonSerialisationListe);
 
-
-
 IConfiguration configuration = new ConfigurationBuilder()
 .SetBasePath(AppContext.BaseDirectory)
 .AddJsonFile("appsettings.json", optional: false)// optional: false Rend le fichier obligatoire.
 .AddUserSecrets<Program>()
 .AddEnvironmentVariables()
 .Build();
+
+
 
 SmtpSettings? smtpSettings = configuration
 .GetSection("Smtp")
@@ -239,9 +176,9 @@ if (string.IsNullOrWhiteSpace(smtpSettings.Password))
 {
     throw new Exception("La section Smtp.Password est manquante dans appsettings.json !");
 }
-Console.WriteLine($"Serveur {smtpSettings.Host} sur le PORT : {smtpSettings.Port} et avec la méthode : {smtpSettings.SecureSocketOptions?.ToString() ?? "Non Défini"}.");
+logger.LogInformation("Serveur {Host} sur le PORT : {PORT} et avec la méthode : {MethodeChiffrement}.",smtpSettings.Host,smtpSettings.Port,smtpSettings.SecureSocketOptions?.ToString() ?? "Non Défini");
 
-SmtpEmailSender facteur = new SmtpEmailSender(smtpSettings);
+using var facteur = new SmtpEmailSender(smtpSettings);
 
 MailboxAddress messageSender = new MailboxAddress(Encoding.UTF8, smtpSettings.Sender, smtpSettings.User);
 
@@ -249,74 +186,108 @@ int compteurAccepted = 0;
 int compteurRejeted = 0;
 int compteurSansEmail = 0;
 int compteurErreur = 0;
-
-
-foreach (var p in listeEmails)
+try
 {
-    if (p.Email is null) { Console.WriteLine($"[Erreur]Le mail du participant {p.NomComplet} est absent."); compteurSansEmail++; continue; }
-    MailboxAddress messageRecipient = new MailboxAddress(Encoding.UTF8, p.NomComplet, p.Email);
-    BodyBuilder bodybuilder = new BodyBuilder();
-    bodybuilder.TextBody = MailBodyBuilder.BuildText(p);
-    bodybuilder.HtmlBody = MailBodyBuilder.BuildHtml(p);
-    string subject = "Les Balades Bigoudènes 2027";
-    MimeEntity body = bodybuilder.ToMessageBody();
+    await facteur.ConnexionAsync();
 
-    try
+    foreach (var p in listeEmails)
     {
-        SendResult response = await facteur.SendEmail(messageRecipient, messageSender, subject, body);
-        Console.WriteLine($"Réponse du serveur : {response.ResponseText}");
-        //Partie pour ETHEREAL SEULEMENT : 
-        if (response.ResponseText.Split(" ").Contains("Accepted"))
+        if (p.Email is null) { Console.WriteLine($"[Erreur]Le mail du participant {p.NomComplet} est absent."); compteurSansEmail++; continue; }
+        MailboxAddress messageRecipient = new MailboxAddress(Encoding.UTF8, p.NomComplet, p.Email);
+        BodyBuilder bodybuilder = new BodyBuilder
         {
-            string[] responseParts = response.ResponseText.Split("MSGID=");
-            if (responseParts.Count() > 1)
+            TextBody = MailBodyBuilder.BuildText(p),
+            HtmlBody = MailBodyBuilder.BuildHtml(p)
+        };
+        string subject = "Les Balades Bigoudènes 2027";
+        MimeEntity body = bodybuilder.ToMessageBody();
+        if (!facteur.IsConnected())
+        {
+            int nbreEssais = 3;
+            int delay = 3000;
+            for (int i = 1; i <= nbreEssais; i++)
             {
-                Console.WriteLine($"https://ethereal.email/message/{responseParts[1].TrimEnd(']')}");
-                /** Variante :  string resultat = texte.Length > 0 ? texte[..^1] : texte; **/
+                try
+                {
+                    await Task.Delay(delay);
+                    await facteur.ConnexionAsync();
+                    if (facteur.IsConnected()) { logger.LogInformation("Reconnexion efféctuée.");break; }
+                }
+                catch (AuthenticationException authEx)
+                {
+                    logger.LogError($"problème d'authentification : {authEx.Message}.");
+                    throw;
+                }
+                catch (InvalidOperationException ivEx)
+                {
+                    logger.LogError($"problème d'acces Serveur : {ivEx.Message}.");
+                    if (i == 3) { throw; }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError($"Connexion SMTP perdue : tentative {i}/{nbreEssais} essais.\n Raison : {ex.Message}.");
+                }
+            }
+            if (!facteur.IsConnected())
+            {
+                throw new InvalidOperationException($"Connexion SMTP perdue : reconnexion impossible après {nbreEssais} essais.");
             }
         }
-        // FIN PARTIE ETHEREAL
-        if (response.RejectedRecipients.Count == 0)
+        try
         {
-            compteurAccepted++;
-            string acceptes = string.Join(", ", response.AcceptedRecipients.Select(destinataire => destinataire.Address));
-            Console.WriteLine($"Envoi effectué pour : {acceptes}");
+            SendResult response = await facteur.SendEmail(messageRecipient, messageSender, subject, body);
+            Console.WriteLine($"Réponse du serveur : {response.ResponseText}");
+            //Partie pour ETHEREAL SEULEMENT : 
+            if (response.ResponseText.Split(" ").Contains("Accepted"))
+            {
+                string[] responseParts = response.ResponseText.Split("MSGID=");
+                if (responseParts.Count() > 1)
+                {
+                    Console.WriteLine($"https://ethereal.email/message/{responseParts[1].TrimEnd(']')}");
+                    /** Variante :  string resultat = texte.Length > 0 ? texte[..^1] : texte; **/
+                }
+            }
+            // FIN PARTIE ETHEREAL
+            if (response.RejectedRecipients.Count == 0)
+            {
+                compteurAccepted++;
+                string acceptes = string.Join(", ", response.AcceptedRecipients.Select(destinataire => destinataire.Address));
+                logger.LogInformation($"Envoi effectué pour : {acceptes}");
+            }
+            else
+            {
+                compteurRejeted++;
+                string refuses = string.Join(", ", response.RejectedRecipients.Select(destinataire => destinataire.Address));
+                logger.LogInformation($"Destinataire(s) refusé(s) : {refuses}");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            compteurRejeted++;
-            string refuses = string.Join(", ", response.RejectedRecipients.Select(destinataire => destinataire.Address));
-            Console.WriteLine($"Destinataire(s) refusé(s) : {refuses}");
+            compteurErreur++;
+            logger.LogError($"La procédure d'envoi d'email n'a pas pu aboutir : {ex.Message}.");
         }
-    }
-    catch (AuthenticationException authEx)
-    {
-        compteurErreur++;
-        Console.WriteLine($"Identifiants SMTP refusés (User ou Password incorrect(s)) : {authEx.Message}.");
-        SendingErrorLog.WriteSendingErrorsLog(authEx, p);
-        break;
-    }
-    catch (SocketException sockEx)
-    {
-        compteurErreur++;
-        Console.WriteLine($"Serveur non accessible : {sockEx.Message}.");
-        SendingErrorLog.WriteSendingErrorsLog(sockEx, p);
-        break;
-    }
-    catch (Exception ex)
-    {
-        compteurErreur++;
-        Console.WriteLine($"La procédure d'envoi d'email n'a pas pu aboutir : {ex.Message}.");
-        SendingErrorLog.WriteSendingErrorsLog(ex, p);
-    }
-    finally
-    {
-        Console.WriteLine($"Fin de la procédure d'envoi d'email pour {p.NomComplet}.");
+        finally
+        {
+            logger.LogInformation($"Fin de la procédure d'envoi d'email pour {p.NomComplet}.");
+        }
     }
 }
-int compteurNoneTreated = listeEmails.Count - (compteurRejeted + compteurAccepted + compteurErreur + compteurSansEmail);
+catch (AuthenticationException authEx)
+{
+    logger.LogError($"Identifiants SMTP refusés (User ou Password incorrect) : {authEx.Message}.");
+}
+catch (SocketException sockEx)
+{
+    logger.LogError($"Serveur non accessible ({smtpSettings.Host}) : {sockEx.Message}.");
+}
+catch (Exception ex)
+{
+    logger.LogError($"Connexion impossible : {ex.Message}."); SendingErrorLog.WriteSendingErrorsLog(ex);
+}
+finally
+{
+    await facteur.CloseConnectionAsync();
+}
+int compteurNoneTreated = listeEmails.Count - (compteurAccepted + compteurRejeted + compteurErreur + compteurSansEmail);
 string compteRendu = $"Mails à envoyer : {listeEmails.Count}.\nMails envoyés : {compteurAccepted}.\nMails Rejetés : {compteurRejeted}.\nMails non traités : {compteurNoneTreated}.\nÉchecs d'envoi : {compteurErreur}.\nEmail absent : {compteurSansEmail}.";
-Console.WriteLine(compteRendu);
-
-
-
+logger.LogInformation(compteRendu);
