@@ -86,8 +86,11 @@ secrets.json
 # ---------- Fichiers Sensibles et CSV ----------
 *.csv
 liste_diffusion.json
+<<<<<<< HEAD
 # Exception pour le fichier anonyme
 !tests/data/*.csv
+=======
+>>>>>>> 5895514 ([GITIGNORE] Rajout Gitignore)
 
 # ---------- Bases de données locales ----------
 *.db
@@ -107,4 +110,8 @@ $RECYCLE.BIN/
 .DS_Store
 ._*
 # Linux
+<<<<<<< HEAD
 *~
+=======
+*~
+>>>>>>> 5895514 ([GITIGNORE] Rajout Gitignore)
