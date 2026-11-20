@@ -16,6 +16,8 @@ public class LectureCSV
     private static readonly string _cheminCsv = "participantsLight.csv";
 
     private readonly EnvoiSettings envoiSetting;
+    private static bool envoiPossible = false;
+    private static bool envoiReelPossible = false;
     // Partie Connexion et Reconnexion 
     const int nbreEssais = 3;
     const int delay = 6000;
@@ -116,7 +118,7 @@ public class LectureCSV
                 ResultatEmail.Vide => "Email Absent !",
                 _ => "Cas Inconnu"
             };
-            _logger.LogInformation("{NomComplet} Motif rejet Email : {Resultat}",ligne.NomComplet,result);
+            _logger.LogInformation("{NomComplet} Motif rejet Email : {Resultat}", ligne.NomComplet, result);
             logging.Add($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")} | {enumResult} | {ligne.NomComplet} | {result}");
         }
         File.AppendAllLines(chemingLogRejet, logging);
@@ -163,6 +165,10 @@ public class LectureCSV
         string jsonSerialisationListe = JsonSerializer.Serialize(listeEmails, optionSerialisation);
         File.WriteAllText(cheminListeDiffusion, jsonSerialisationListe);
 
+
+        // Début de la partie Configuration des paramètres Smtp et Mode Envoi (appsettings.json et variables d'environnement)
+        //
+        // SMTP SETTING
         if (smtpSettings is null
             || string.IsNullOrWhiteSpace(smtpSettings.Host)
             || smtpSettings.Port <= 0
@@ -170,45 +176,59 @@ public class LectureCSV
             || smtpSettings.SecureSocketOptions == SecureSocketOptions.Auto
             || smtpSettings.SecureSocketOptions == SecureSocketOptions.None
             || smtpSettings.SecureSocketOptions == SecureSocketOptions.StartTlsWhenAvailable)
-        {
-            throw new InvalidOperationException(
-                "Configuration SMTP invalide : la section \"Smtp\" doit contenir un Host / Port / Sender valide(s) (appsettings.json) et un mode d'envoi sécurisé.");
-        }
+        { throw new InvalidOperationException("Configuration SMTP invalide : la section \"Smtp\" doit contenir un Host / Port / Sender valide(s) (appsettings.json) et un mode d'envoi sécurisé."); }
+        if (string.IsNullOrWhiteSpace(smtpSettings.User)) { throw new Exception("La section Smtp.User est manquante dans appsettings.json !"); }
+        if (string.IsNullOrWhiteSpace(smtpSettings.Password)) { throw new Exception("La section Smtp.Password est manquante dans appsettings.json !"); }
+        // FIN SMTP SETTING
 
-        if (string.IsNullOrWhiteSpace(smtpSettings.User))
+        // MODE ENVOI SETTING
+        ModeEnvoi enumResultEnvoiSetting = envoiSetting.Mode;
+        string resultSwitch = enumResultEnvoiSetting switch
         {
-            throw new Exception("La section Smtp.User est manquante dans appsettings.json !");
-        }
-        if (string.IsNullOrWhiteSpace(smtpSettings.Password))
-        {
-            throw new Exception("La section Smtp.Password est manquante dans appsettings.json !");
-        }
-        if (envoiSetting.Mode == ModeEnvoi.Reel)
-        {
-            throw new Exception("La section Envoi.Mode n'est pas en mode Simulation dans appsettings.json !");
-        }
-        var hostAdress = "smtp.ethereal.email";
-        if (!string.Equals(hostAdress,smtpSettings.Host,StringComparison.OrdinalIgnoreCase))
-        {
-            throw new Exception("Le mode Envoi:Test n'est accepté qu'avec un Host ethereal dans appsettings.json !");
-        }
-        
-        _logger.LogInformation("Serveur {Host} sur le PORT : {PORT} et avec la méthode : {MethodeChiffrement} et le mode d'envoi : {ModeEnvoi}.", smtpSettings.Host, smtpSettings.Port, smtpSettings.SecureSocketOptions?.ToString() ?? "Non Défini", envoiSetting.Mode.ToString());
+            ModeEnvoi.Reel => TraiterModeEnvoiReel(envoiSetting, smtpSettings),
+            ModeEnvoi.Simulation => TraiterModeEnvoiSimulation(envoiSetting, smtpSettings),
+            ModeEnvoi.Test => TraiterModeEnvoiTest(envoiSetting, smtpSettings),
+            _ => throw new Exception("Mode Envoi Inconnu.")
+        };
+        _logger.LogInformation("Serveur {Host} sur le PORT : {PORT} et avec la méthode : {MethodeChiffrement} et le mode d'envoi : {ModeEnvoi}.", smtpSettings.Host, smtpSettings.Port, smtpSettings.SecureSocketOptions?.ToString() ?? "Non Défini", enumResultEnvoiSetting.ToString());
+        // FIN MODE ENVOI SETTING
+        // 
+        // Fin de la partie Configuration des paramètres Smtp et Mode Envoi (appsettings.json et variables d'environnement)
 
 
-
-        MailboxAddress messageSender = new MailboxAddress(Encoding.UTF8, smtpSettings.Sender, smtpSettings.User);
+        // DEBUT PARTIE MAILING
+        //
+        // LES COMPTEURS POUR MAILING 
         int compteurAccepted = 0;
         int compteurRejeted = 0;
         int compteurSansEmail = 0;
         int compteurErreur = 0;
-
+        int compteurSimulation = 0;
+        // CONFIGURATION DE L'EXPEDITEUR
+        MailboxAddress messageSender = new MailboxAddress(Encoding.UTF8, smtpSettings.Sender, smtpSettings.User);
         try
         {
-            await facteur.ConnexionAsync();
+            // CONNEXION
+            if (envoiReelPossible)
+            {
+                Console.WriteLine($"Veuillez confirmer par 'oui' ou 'non' l'envoi de : {listeEmails.Count} Emails.");
+                string? reponseUser = Console.ReadLine();
+                if (string.Equals(reponseUser, "oui", StringComparison.OrdinalIgnoreCase))
+                {
+                    envoiReelPossible = true;
+                }
+                else
+                {
+                    envoiPossible = false;
+                    envoiReelPossible = false;
+                }
+                _logger.LogWarning("Vous avez répondu : {ReponseUser}.",reponseUser);
+            }
+            if (envoiPossible) { await facteur.ConnexionAsync(); }
             foreach (var p in listeEmails)
             {
-                if (p.Email is null) { _logger.LogError("Le mail du participant {NomComplet} est absent.",p.NomComplet); compteurSansEmail++; continue; }
+                // CONSTRUCTION DU MAIL
+                if (p.Email is null) { _logger.LogError("Le mail du participant {NomComplet} est absent.", p.NomComplet); compteurSansEmail++; continue; }
                 MailboxAddress messageRecipient = new MailboxAddress(Encoding.UTF8, p.NomComplet, p.Email);
                 BodyBuilder bodybuilder = new BodyBuilder
                 {
@@ -218,18 +238,20 @@ public class LectureCSV
                 string subject = "Les Balades Bigoudènes 2027";
                 MimeEntity body = bodybuilder.ToMessageBody();
 
-
+                // BOUCLE DE DEUX TENTATIVES D'ENVOI (DECONNEXION INTEMPESTIVE AVEC RISQUE ACCEPTE IDEMPOTENT : DOUBLON MAIL) VIA : nbreEnvoiMax
                 for (int i = 1; i <= nbreEnvoiMax; i++)
                 {
                     // Une exception ici remonte jusqu'au catch externe et arrête la campagne.
-                    if (i > 1)
+                    if (i > 1 && envoiPossible)
                     {
                         // Seul un échec réseau mène à un 2e essai : le mail précédent a peut-être déjà été remis.
                         _logger.LogWarning("Nouvelle tentative {Tentative}/{NbreEnvoiMax} pour {NomComplet} : le mail précédent a peut-être déjà été remis.", i, nbreEnvoiMax, p.NomComplet);
                         await Task.Delay(delayEnvoiDeco);
                     }
-                    if (!facteur.IsConnected())
+                    // GESTION PROBLEME CONNEXION
+                    if (!facteur.IsConnected() && envoiPossible)
                     {
+                        // TENTATIVE DE RECONNEXION VIA nbreEssais
                         await EnsureConnectedAsync(p);
                         if (!facteur.IsConnected())
                         {
@@ -238,31 +260,43 @@ public class LectureCSV
                     }
                     try
                     {
-                        SendResult response = await facteur.SendEmail(messageRecipient, messageSender, subject, body);
-                        _logger.LogInformation("Réponse du serveur : {Reponse}",response.ResponseText);
-                        //Partie pour ETHEREAL SEULEMENT : 
-                        if (response.ResponseText.Split(" ").Contains("Accepted"))
+                        // ENVOI DU MAIL
+                        if (envoiPossible)
                         {
-                            string[] responseParts = response.ResponseText.Split("MSGID=");
-                            if (responseParts.Count() > 1)
+                            // ENVOI REEL ET SIMULE
+                            SendResult response = await facteur.SendEmail(messageRecipient, messageSender, subject, body);
+                            _logger.LogInformation("Réponse du serveur : {Reponse}", response.ResponseText);
+                            //Mode Test : Partie pour ETHEREAL SEULEMENT : 
+                            if (response.ResponseText.Split(" ").Contains("Accepted"))
                             {
-                                _logger.LogInformation("{Lien}","https://ethereal.email/message/{responseParts[1].TrimEnd(']')}");
-                                /** Variante :  string resultat = texte.Length > 0 ? texte[..^1] : texte; **/
+                                string[] responseParts = response.ResponseText.Split("MSGID=");
+                                if (responseParts.Count() > 1)
+                                {
+                                    _logger.LogInformation("{Lien}{Reponse}", "https://ethereal.email/message/", responseParts[1].TrimEnd(']'));
+                                    /** Variante :  string resultat = texte.Length > 0 ? texte[..^1] : texte; **/
+                                }
+                            }
+                            // FIN PARTIE ETHEREAL
+                            if (response.RejectedRecipients.Count == 0)
+                            {
+                                compteurAccepted++;
+                                string acceptes = string.Join(", ", response.AcceptedRecipients.Select(destinataire => destinataire.Address));
+                                _logger.LogInformation("Envoi effectué pour : {ParticipantAccepte}", acceptes);
+                                break;
+                            }
+                            else
+                            {
+                                compteurRejeted++;
+                                string refuses = string.Join(", ", response.RejectedRecipients.Select(destinataire => destinataire.Address));
+                                _logger.LogInformation("Destinataire(s) refusé(s) : {ParticipantRefuse}", refuses);
+                                break;
                             }
                         }
-                        // FIN PARTIE ETHEREAL
-                        if (response.RejectedRecipients.Count == 0)
+                        else // Mode SIMULATION : Pas D'ENVOI
                         {
-                            compteurAccepted++;
-                            string acceptes = string.Join(", ", response.AcceptedRecipients.Select(destinataire => destinataire.Address));
-                            _logger.LogInformation("Envoi effectué pour : {ParticipantAccepte}", acceptes);
-                            break;
-                        }
-                        else
-                        {
-                            compteurRejeted++;
-                            string refuses = string.Join(", ", response.RejectedRecipients.Select(destinataire => destinataire.Address));
-                            _logger.LogInformation("Destinataire(s) refusé(s) : {ParticipantRefuse}", refuses);
+                            compteurSimulation++;
+                            string simuleModeSimulation = string.Join(", ", messageRecipient.Address);
+                            _logger.LogInformation("Destinataire(s) Simulé(s) : {ParticipantSimule}", simuleModeSimulation);
                             break;
                         }
                     }
@@ -306,8 +340,15 @@ public class LectureCSV
             _logger.LogInformation("Fin de la procédure d'envoi d'email.");
             await facteur.CloseConnectionAsync();
         }
-        int compteurNoneTreated = listeEmails.Count - (compteurAccepted + compteurRejeted + compteurErreur + compteurSansEmail);
-        string compteRendu = $"\nMails à envoyer : {listeEmails.Count}.\nMails envoyés : {compteurAccepted}.\nMails Rejetés : {compteurRejeted}.\nMails non traités : {compteurNoneTreated}.\nÉchecs d'envoi : {compteurErreur}.\nEmail absent : {compteurSansEmail}.";
+        
+        string compteRendu;
+        if (envoiPossible) {
+            int compteurNoneTreated = listeEmails.Count - (compteurAccepted + compteurRejeted + compteurErreur + compteurSansEmail);
+            compteRendu = $"\nMails à envoyer : {listeEmails.Count}.\nMails envoyés : {compteurAccepted}.\nMails Rejetés : {compteurRejeted}.\nMails non traités : {compteurNoneTreated}.\nÉchecs d'envoi : {compteurErreur}.\nEmail absent : {compteurSansEmail}.";
+        } else { 
+            int compteurNoneTreated = listeEmails.Count - (compteurSimulation + compteurErreur + compteurSansEmail);
+            compteRendu = $"\nMails à envoyer : {listeEmails.Count}.\nMails simulés : {compteurSimulation}.\nMails non traités : {compteurNoneTreated}.\nÉchecs d'envoi : {compteurErreur}.\nEmail absent : {compteurSansEmail}.";
+        }
         _logger.LogInformation(compteRendu);
 
     }
@@ -339,5 +380,38 @@ public class LectureCSV
             }
             if (i != nbreEssais) { await Task.Delay(delay); }
         }
+    }
+
+
+
+    private string TraiterModeEnvoiSimulation(EnvoiSettings pSettingModeEnvoi, SmtpSettings pSettingSmtp)
+    {
+        if (envoiPossible || envoiReelPossible) { throw new Exception("Autorisation Non Accordée pour l'envoi de Mails, vérifiez vos drapeaux."); }
+        if (pSettingModeEnvoi.Mode != ModeEnvoi.Simulation) { throw new Exception("La section Envoi.Mode n'est pas en mode Simulation dans appsettings.json !"); }
+        envoiPossible = false;
+        _logger.LogInformation("Configuration Application : Envoi Possible : {Flag} | Envoi Reel Possible : {envoiReelPossible} | ModeEnvoi : {ModeEnvoi} | Serveur : {SmtpSetting.Host}.", envoiPossible, envoiReelPossible, pSettingModeEnvoi.Mode, pSettingSmtp.Host);
+        return "Envoi Impossible : Mode Simulation";
+    }
+    private string TraiterModeEnvoiTest(EnvoiSettings pSettingModeEnvoi, SmtpSettings pSettingSmtp)
+    {
+        if (envoiPossible || envoiReelPossible) { throw new Exception("Autorisation Non Accordée pour l'envoi de Mails, vérifiez vos drapeaux."); }
+        if (pSettingModeEnvoi.Mode != ModeEnvoi.Test) { throw new Exception("La section Envoi.Mode n'est pas en mode Test dans appsettings.json !"); }
+        var hostAdress = "smtp.ethereal.email";
+        if (!string.Equals(pSettingSmtp.Host, hostAdress, StringComparison.OrdinalIgnoreCase)) { throw new Exception("La section Smtp.Host n'est pas configuré avec Ethereal dans appsettings.json !"); }
+        envoiPossible = true;
+        _logger.LogInformation("Configuration Application : Envoi Possible : {Flag} | Envoi Reel Possible : {envoiReelPossible} | ModeEnvoi : {ModeEnvoi} | Serveur : {Host}.", envoiPossible, envoiReelPossible, pSettingModeEnvoi.Mode, pSettingSmtp.Host);
+        return "Envoi Simulé Possible : Mode Test";
+    }
+    private string TraiterModeEnvoiReel(EnvoiSettings pSettingModeEnvoi, SmtpSettings pSettingSmtp)
+    {
+        if (envoiPossible || envoiReelPossible) { throw new Exception("Autorisation Non Accordée pour l'envoi de Mails, vérifiez vos drapeaux."); }
+        if (pSettingModeEnvoi.Mode != ModeEnvoi.Reel) { throw new Exception("La section Envoi.Mode n'est pas en mode Reel dans appsettings.json !"); }
+        if (string.Equals(pSettingSmtp.Host,"smtp.ethereal.email", StringComparison.OrdinalIgnoreCase)) { throw new Exception($"La section Smtp.Host est configuré avec ETHEREAL : '{pSettingSmtp.Host}' dans appsettings.json !"); }
+        //if (pSettingSmtp.Host != "Non Disponible") { throw new Exception("La section Smtp.Host n'est pas configuré avec Non Disponible dans appsettings.json !"); }
+        envoiPossible = true;
+        envoiReelPossible = true;
+        _logger.LogInformation("Configuration Application : Envoi Possible : {Flag} | Envoi Reel Possible : {envoiReelPossible} | ModeEnvoi : {ModeEnvoi} | Serveur : {Host}.", envoiPossible, envoiReelPossible, pSettingModeEnvoi.Mode, pSettingSmtp.Host);
+        _logger.LogWarning("[PRODUCTION]Envoi Reel de Mails : Envoi Possible : {Flag} | Envoi Reel Possible : {envoiReelPossible} | ModeEnvoi : {ModeEnvoi} | Serveur : {Host}.", envoiPossible, envoiReelPossible, pSettingModeEnvoi.Mode, pSettingSmtp.Host);
+        return "[PRODUCTION]Envoi Réel Possible : Mode Reel";
     }
 }
