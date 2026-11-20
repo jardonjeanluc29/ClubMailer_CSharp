@@ -83,6 +83,10 @@ appsettings.Local.json
 !.env.example
 secrets.json
 
+# ---------- Fichiers Sensibles et CSV ----------
+*.csv
+liste_diffusion.json
+
 # ---------- Bases de données locales ----------
 *.db
 *.db-shm
