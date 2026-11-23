@@ -20,6 +20,6 @@ try
 }
 catch  (Exception ex) when (ex is FileNotFoundException or InvalidDataException)
 {
-    logger.LogError(ex, "Impossible de lire le fichier CSV.");
+    logger.LogError(ex, "[Application]Impossible de lire le fichier CSV.");
     Environment.ExitCode = 1;
 }

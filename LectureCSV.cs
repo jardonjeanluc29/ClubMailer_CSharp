@@ -14,16 +14,19 @@ using CsvHelper;
 using CsvHelper.Configuration.Attributes;
 using CsvHelper.Delegates;
 using MimeKit.Encodings;
+using System.Security.Cryptography;
 
 public class LectureCSV
 {
 
-    //Version Longue UTF-8 
-    private static readonly string _cheminCsv = "participant_pointVirgule.csv";
-    // Version Allegée UTF-8 private static readonly string _cheminCsv = "participantsLight.csv";
+    //Version Longue UTF-8 private static readonly string _cheminCsv = "participant_pointVirgule.csv";
+    // Version Allegée UTF-8 
+    private static readonly string _cheminCsv = "participantsLight.csv";
     // Version Tabulation 1252 private static readonly string _cheminCsv = "participant_tabulation.csv";
     // Version Allegée UTF-8 Test Colonne Manquante private static readonly string _cheminCsv = "testColonneManquante.csv";
 
+    // TODO: A Changer Plus tard et à mettre dans le constructeur je pense.
+    private readonly string nomFichier = _cheminCsv; // 
     private readonly EnvoiSettings envoiSetting;
     private static bool envoiPossible = false;
     private static bool envoiReelPossible = false;
@@ -51,10 +54,10 @@ public class LectureCSV
             .Build();
         this.envoiSetting = configuration
             .GetSection("Envoi")
-            .Get<EnvoiSettings>() ?? throw new InvalidOperationException("La section ModeEnvoi est manquante dans appsettings.json !");
+            .Get<EnvoiSettings>() ?? throw new InvalidOperationException("[Configuration]La section ModeEnvoi est manquante dans appsettings.json !");
         this.smtpSettings = configuration
             .GetSection("Smtp")
-            .Get<SmtpSettings>() ?? throw new InvalidOperationException("La section Smtp est manquante dans appsettings.json !");
+            .Get<SmtpSettings>() ?? throw new InvalidOperationException("[Configuration]La section Smtp est manquante dans appsettings.json !");
         this.facteur = new SmtpEmailSender(smtpSettings);
     }
 
@@ -62,6 +65,7 @@ public class LectureCSV
     {
         // Le fichier existe-t-il et n'est-il pas vide ? (lance une exception sinon)
         DetecterFichierNullEmpty(_cheminCsv);
+
         // Quel séparateur ? (renvoie ";" ou "\t", ou lance une exception)
         string delimiteur = DetectDelimiterCSV(_cheminCsv);
 
@@ -81,7 +85,7 @@ public class LectureCSV
         // On test l'encodage pour etre sur du bon format dans la création
         using var lecteurCSV = LecteurAvecBonEncodage(_cheminCsv);
         string encodage = lecteurCSV.CurrentEncoding.WebName;
-        _logger.LogInformation("Encodage détecté : {Encodage}", encodage);
+
 
         // On passe le Lecteur finalisé au Package CsvHelper.CsvReader
         // Note IA : le false est leaveOpen (« laisser le flux ouvert »). 
@@ -100,25 +104,15 @@ public class LectureCSV
         List<string> listeHeadersOptionalDuFichierManquant = DetecterHeadersOptionnelsManquants(csvFile);
         if (listeHeadersOptionalDuFichierManquant.Any())
         {
-            _logger.LogWarning(
-    "Il y a {Count} header(s) optionnel(s) manquant(s) dans le CSV : {Manquants}.",
-    listeHeadersOptionalDuFichierManquant.Count,
-    string.Join(", ", listeHeadersOptionalDuFichierManquant));
+            _logger.LogWarning("[Fichier]Il y a {Count} header(s) optionnel(s) manquant(s) dans le CSV : {Manquants}.", listeHeadersOptionalDuFichierManquant.Count, string.Join(", ", listeHeadersOptionalDuFichierManquant));
         }
-        else { _logger.LogInformation("Aucun Headers Optionnels Manquant"); }
 
-        string[] listeHeadersCompleteDuFichier = AfficherHeaders(csvFile);
-        _logger.LogInformation("Liste des Headers dans le Csv : {Headers}.", string.Join(",", listeHeadersCompleteDuFichier));
 
         List<Participant> listeParticipants = csvFile.GetRecords<Participant>()
         //.Where(ligne => !ligne.ChampsTextCsvMvp.All(string.IsNullOrWhiteSpace))
         .ToList();
         // [IMPORTANT] Ici : on attrape un Header Manquant (qui n'est pas Optional et donc nécessaire au programme)  mais on a verifié avant donc aucun risque      
 
-
-        // Nombre de Lignes du Fichier CSV BRUT : 
-        int lignesTotalFichierBrut = listeParticipants.Count;
-        _logger.LogInformation("Nombre de lignes du fichier : {NbreLignes}", lignesTotalFichierBrut);
 
 
         // On va nettoyer de la liste, les lignes d'entête qui se répêtent
@@ -128,21 +122,45 @@ public class LectureCSV
         // Si c est le cas : c'est une répétition du header donc on n'en veut pas comme une ligne d'inscription.
         // C'est moins compréhenssible au premier abord mais on utilise listeHeaders... pour comparer la présence et pas l'inverse car :
         // ChampsTextCsvMvp est une liste réduite des champs, listeHeaders est complete elle normalement.
+        string[] listeHeadersCompleteDuFichier = ListerHeaders(csvFile);
         List<Participant> listeParticipantSansDoublonHeaders = listeParticipants
         .Where(p => !p.ChampsTextCsvMvp.All(champ => listeHeadersCompleteDuFichier.Contains(champ, StringComparer.OrdinalIgnoreCase)))
         .ToList();
-        // Nombre de Lignes retirées du Fichier CSV : 
+
+        // Variables pour le Rapport de Journalisation
+        int nbreHeaders = CompterHeaders(csvFile); ;
+        int nbreHeadersManquants = listeHeadersOptionalDuFichierManquant.Count;
+        int lignesTotalFichierBrut = listeParticipants.Count;
         int lignesRetirees = listeParticipants.Count - listeParticipantSansDoublonHeaders.Count;
-        _logger.LogInformation("Nombre de lignes retirées du fichier (Répétition Headers) : {NbreLignesRetirées}", lignesRetirees);
-        // Nombres Total D'inscription du fichier Brut.
         int lignesInscriptions = listeParticipantSansDoublonHeaders.Count;
-        _logger.LogInformation("[CSV Information]Nombre d'inscriptions extraite du fichier : {NombreParticipants}", lignesInscriptions);
         if (lignesTotalFichierBrut - (lignesInscriptions + lignesRetirees) != 0)
         {
-            _logger.LogInformation("Le fichier n'est pas Valide");
+            _logger.LogWarning("[Fichier]Le fichier n'est pas Valide");
             throw new InvalidDataException("Le fichier n'est pas Valide, impossible de traiter les lignes correctement.");
         }
-
+        // Rapport de Journalisation sur le Fichier
+        _logger.LogInformation(
+    """
+    -------------------------------------------------------------------------------------------
+    [Rapport Fichier CSV] Résumé de l'import du fichier : {NomFichier}
+    [Encodage]Encodage détecté : {Encodage}
+    [Séparateur]Séparateur détecté : {Separateur}
+    [Taille]Nombre de lignes du fichier : {NbreLignes}
+    [Taille]Nombre de lignes retirées du fichier (Répétition Headers) : {NbreLignesRetirées}
+    [Taille]Nombre d'inscriptions extraite du fichier : {NombreParticipants}
+    [Colonnes]Nombre de Colonnes dans le Csv : {Headers}
+    [Colonnes]Nombre de Headers Optionnels Manquant : {NbreHeadersManquants}
+    -------------------------------------------------------------------------------------------
+    """,
+    nomFichier,
+    encodage,
+    delimiteur == "\t" ? "tabulation" : delimiteur,
+    lignesTotalFichierBrut,
+    lignesRetirees,
+    lignesInscriptions,
+    nbreHeaders,
+    nbreHeadersManquants
+    );
 
         // On va utiliser la méthode native de .net pour valider la presence d'email (valide) ou non 
 
@@ -333,7 +351,7 @@ public class LectureCSV
                             {
                                 compteurAccepted++;
                                 string acceptes = string.Join(", ", response.AcceptedRecipients.Select(destinataire => destinataire.Address));
-                                _logger.LogInformation("Envoi effectué pour : {ParticipantAccepte}", acceptes);
+                                _logger.LogInformation("[MAIL ENVOYE]Envoi effectué pour : {ParticipantAccepte}", acceptes);
                                 break;
                             }
                             else
@@ -416,21 +434,21 @@ public class LectureCSV
             try
             {
                 await facteur.ConnexionAsync();
-                if (facteur.IsConnected()) { _logger.LogInformation("Reconnexion efféctuée."); break; }
+                if (facteur.IsConnected()) { _logger.LogInformation("[Connexion]Reconnexion efféctuée."); break; }
             }
             catch (AuthenticationException authEx)
             {
-                _logger.LogError(authEx, "problème d'authentification.");
+                _logger.LogError(authEx, "[Connexion]problème d'authentification.");
                 throw;
             }
             catch (InvalidOperationException ivEx)
             {
-                _logger.LogError(ivEx, "problème d'acces Serveur. \nParticipant : {NomComplet}.", pParticipant.NomComplet);
+                _logger.LogError(ivEx, "[Connexion]problème d'acces Serveur. \nParticipant : {NomComplet}.", pParticipant.NomComplet);
                 if (i == nbreEssais) { throw; }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Connexion SMTP perdue : tentative {I}/{NombreEssais} essais.\nParticipant : {NomComplet}.", i, nbreEssais, pParticipant.NomComplet);
+                _logger.LogError(ex, "[Connexion]Connexion SMTP perdue : tentative {I}/{NombreEssais} essais.\nParticipant : {NomComplet}.", i, nbreEssais, pParticipant.NomComplet);
             }
             if (i != nbreEssais) { await Task.Delay(delay); }
         }
@@ -440,10 +458,9 @@ public class LectureCSV
 
     private string TraiterModeEnvoiSimulation(EnvoiSettings pSettingModeEnvoi, SmtpSettings pSettingSmtp)
     {
-        if (envoiPossible || envoiReelPossible) { throw new Exception("Autorisation Non Accordée pour l'envoi de Mails, vérifiez vos drapeaux."); }
-        if (pSettingModeEnvoi.Mode != ModeEnvoi.Simulation) { throw new Exception("La section Envoi.Mode n'est pas en mode Simulation dans appsettings.json !"); }
+        if (envoiPossible || envoiReelPossible) { throw new Exception("[Auth]Autorisation Non Accordée pour l'envoi de Mails, vérifiez vos drapeaux."); }
+        if (pSettingModeEnvoi.Mode != ModeEnvoi.Simulation) { throw new Exception("[Configuration]La section Envoi.Mode n'est pas en mode Simulation dans appsettings.json !"); }
         envoiPossible = false;
-        _logger.LogInformation("Configuration Application : Envoi Possible : {Flag} | Envoi Reel Possible : {envoiReelPossible} | ModeEnvoi : {ModeEnvoi} | Serveur : {SmtpSetting.Host}.", envoiPossible, envoiReelPossible, pSettingModeEnvoi.Mode, pSettingSmtp.Host);
         return "Envoi Impossible : Mode Simulation";
     }
     private string TraiterModeEnvoiTest(EnvoiSettings pSettingModeEnvoi, SmtpSettings pSettingSmtp)
@@ -453,7 +470,6 @@ public class LectureCSV
         var hostAdress = "smtp.ethereal.email";
         if (!string.Equals(pSettingSmtp.Host, hostAdress, StringComparison.OrdinalIgnoreCase)) { throw new Exception("La section Smtp.Host n'est pas configuré avec Ethereal dans appsettings.json !"); }
         envoiPossible = true;
-        _logger.LogInformation("Configuration Application : Envoi Possible : {Flag} | Envoi Reel Possible : {envoiReelPossible} | ModeEnvoi : {ModeEnvoi} | Serveur : {Host}.", envoiPossible, envoiReelPossible, pSettingModeEnvoi.Mode, pSettingSmtp.Host);
         return "Envoi Simulé Possible : Mode Test";
     }
     private string TraiterModeEnvoiReel(EnvoiSettings pSettingModeEnvoi, SmtpSettings pSettingSmtp)
@@ -464,8 +480,6 @@ public class LectureCSV
         //if (pSettingSmtp.Host != "Non Disponible") { throw new Exception("La section Smtp.Host n'est pas configuré avec Non Disponible dans appsettings.json !"); }
         envoiPossible = true;
         envoiReelPossible = true;
-        _logger.LogInformation("Configuration Application : Envoi Possible : {Flag} | Envoi Reel Possible : {envoiReelPossible} | ModeEnvoi : {ModeEnvoi} | Serveur : {Host}.", envoiPossible, envoiReelPossible, pSettingModeEnvoi.Mode, pSettingSmtp.Host);
-        _logger.LogWarning("[PRODUCTION]Envoi Reel de Mails : Envoi Possible : {Flag} | Envoi Reel Possible : {envoiReelPossible} | ModeEnvoi : {ModeEnvoi} | Serveur : {Host}.", envoiPossible, envoiReelPossible, pSettingModeEnvoi.Mode, pSettingSmtp.Host);
         return "[PRODUCTION]Envoi Réel Possible : Mode Reel";
     }
 
@@ -473,17 +487,41 @@ public class LectureCSV
     {
         if (!File.Exists(pCheminCsv))
         {
-            _logger.LogWarning("Fichier {Fichier} Manquant", pCheminCsv);
+            _logger.LogWarning("[Fichier]Fichier {Fichier} Manquant", pCheminCsv);
             throw new FileNotFoundException($"Le fichier {pCheminCsv} est introuvable.", pCheminCsv);
         }
         using var lecteurCSV = new StreamReader(pCheminCsv);
         if (lecteurCSV.Peek() == -1)
         {
-            _logger.LogWarning("Fichier {Fichier} Vide", pCheminCsv);
+            _logger.LogWarning("[Fichier]Fichier {Fichier} Vide", pCheminCsv);
             throw new InvalidDataException($"Le fichier CSV '{pCheminCsv}' est totalement vide.");
         }
-        _logger.LogInformation("Fichier {Fichier} Trouvé !", pCheminCsv);
         return true;
+    }
+
+    private string DetectDelimiterCSV(string pCheminCsv)
+    {
+        using StreamReader lecteur = LecteurAvecBonEncodage(pCheminCsv);
+        string? ligneEnTete = lecteur.ReadLine();
+
+        // Fichier sans aucune ligne : rien à analyser.
+        if (string.IsNullOrWhiteSpace(ligneEnTete))
+        {
+            throw new InvalidDataException($"[Fichier]Le fichier CSV '{pCheminCsv}' n'a pas de ligne d'en-tête.");
+        }
+
+        int nbrePointsVirgules = ligneEnTete.Count(c => c == ';');
+        int nbreTabulations = ligneEnTete.Count(c => c == '\t');
+
+        // Aucun des deux, ou autant de l'un que de l'autre : on refuse plutôt que de deviner.
+        if (nbrePointsVirgules == nbreTabulations)
+        {
+            throw new InvalidDataException(
+                $"[Fichier]Format CSV inconnu dans '{pCheminCsv}' : séparateur ';' ou tabulation introuvable ou ambigu dans l'en-tête.");
+        }
+
+        string delimiteur = nbrePointsVirgules > nbreTabulations ? ";" : "\t";
+        return delimiteur;
     }
     private StreamReader LecteurAvecBonEncodage(string pCheminCsv)
     {
@@ -492,6 +530,9 @@ public class LectureCSV
         var utf8Strict = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
         try
         {
+            //Windows-1252 donne un caractère à presque tous les octets possibles.
+            //Il ne peut donc pas échouer, alors qu'UTF-8 strict échoue dès qu'un octet est invalide. 
+            //Seul le test qui peut échouer sait distinguer les deux formats.
             using (var lecteurCSV = new StreamReader(pCheminCsv, utf8Strict, detectEncodingFromByteOrderMarks: true))
             {
                 lecteurCSV.ReadToEnd();
@@ -507,45 +548,17 @@ public class LectureCSV
             // globalement (pas d'état partagé, donc testable sans Program.cs).
             // GetEncoding peut renvoyer null : on échoue avec un message clair.
             Encoding windows1252 = CodePagesEncodingProvider.Instance.GetEncoding(1252)
-                ?? throw new InvalidOperationException("L'encodage Windows-1252 n'est pas disponible sur cette machine.");
-            _logger.LogInformation("[Fichier]Le {Fichier} est encodé en Windows-1252.", pCheminCsv);
+                ?? throw new InvalidOperationException("[Fichier]L'encodage Windows-1252 n'est pas disponible sur cette machine.");
             return new StreamReader(pCheminCsv, windows1252);
         }
     }
-
-    private string DetectDelimiterCSV(string pCheminCsv)
-    {
-        using StreamReader lecteur = LecteurAvecBonEncodage(pCheminCsv);
-        string? ligneEnTete = lecteur.ReadLine();
-
-        // Fichier sans aucune ligne : rien à analyser.
-        if (string.IsNullOrWhiteSpace(ligneEnTete))
-        {
-            throw new InvalidDataException($"Le fichier CSV '{pCheminCsv}' n'a pas de ligne d'en-tête.");
-        }
-
-        int nbrePointsVirgules = ligneEnTete.Count(c => c == ';');
-        int nbreTabulations = ligneEnTete.Count(c => c == '\t');
-
-        // Aucun des deux, ou autant de l'un que de l'autre : on refuse plutôt que de deviner.
-        if (nbrePointsVirgules == nbreTabulations)
-        {
-            throw new InvalidDataException(
-                $"Format CSV inconnu dans '{pCheminCsv}' : séparateur ';' ou tabulation introuvable ou ambigu dans l'en-tête.");
-        }
-
-        string delimiteur = nbrePointsVirgules > nbreTabulations ? ";" : "\t";
-        _logger.LogInformation("[Fichier]Séparateur détecté : {Separateur}", delimiteur == "\t" ? "tabulation" : delimiteur);
-        return delimiteur;
-    }
-
     private bool DetecterHeaderManquant(CsvReader pCsv)
     {
         try
         {
             if (!pCsv.Read() || !pCsv.ReadHeader())
             {
-                throw new InvalidDataException("Le fichier CSV est vide ou ne contient aucun en-tête.");
+                throw new InvalidDataException("[Fichier]Le fichier CSV est vide ou ne contient aucun en-tête.");
             }
 
             // IMPORTANT : Passer <Participant> (le modèle), pas <ParticipantMap> !
@@ -557,28 +570,33 @@ public class LectureCSV
         {
             var manquants = string.Join(", ", headEx.InvalidHeaders.SelectMany(h => h.Names));
 
-            _logger.LogWarning(headEx, "[Headers] Un ou plusieurs Header(s) nécessaire(s) manquant(s) : {HeadersManquants}", manquants);
-            throw new InvalidDataException($"Un ou plusieurs Header(s) nécessaire(s) sont manquants dans le fichier : {manquants}", headEx);
+            _logger.LogWarning(headEx, "[Fichier] Un ou plusieurs Header(s) nécessaire(s) manquant(s) : {HeadersManquants}", manquants);
+            throw new InvalidDataException($"[Fichier]Un ou plusieurs Header(s) nécessaire(s) sont manquants dans le fichier : {manquants}", headEx);
         }
     }
 
 
-    private string[] AfficherHeaders(CsvReader pCsv)
+    private string[] ListerHeaders(CsvReader pCsv)
     {
         if (pCsv.HeaderRecord is null || pCsv.HeaderRecord.Length == 0)
         {
-            throw new InvalidDataException("Aucun Headers dans le Csv");
+            throw new InvalidDataException("[Fichier]Aucun Headers dans le Csv");
         }
         return pCsv.HeaderRecord;
+    }
+
+    private int CompterHeaders(CsvReader pCsv)
+    {
+        return pCsv.HeaderRecord?.Length ?? throw new InvalidDataException("[Fichier]Impossible de compter le nombre de Headers du Fichier.");
     }
 
     private List<string> DetecterHeadersOptionnelsManquants(CsvReader pCsv)
     {
         // Le "?? throw" : si HeaderRecord vaut null, on lance l'exception à la place de continuer.
-        string[] headersCsv = pCsv.HeaderRecord ?? throw new InvalidOperationException("Les en-têtes n'ont pas été lus : appeler DetecterHeaderManquant d'abord.");
+        string[] headersCsv = pCsv.HeaderRecord ?? throw new InvalidOperationException("[Fichier]Les en-têtes n'ont pas été lus : appeler DetecterHeaderManquant d'abord.");
 
         // Je récupère le mapping pour les headers du Records , si il ne trouve pas le mapping (ParticipantMap, il renverra null => on crée une exception pour le signaler)  
-        ClassMap mapParticipant = pCsv.Context.Maps.Find<Participant>() ?? throw new InvalidOperationException("La ClassMap pour Participant est absente.");
+        ClassMap mapParticipant = pCsv.Context.Maps.Find<Participant>() ?? throw new InvalidOperationException("[ClassMap]La ClassMap pour Participant est absente.");
         // Je lui dis lesquels prendre, on veut les Optional().
 
         List<string> headerMappingOptionalManquant = mapParticipant.MemberMaps
