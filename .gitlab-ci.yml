@@ -1,0 +1,14 @@
+# Fichier : .gitlab-ci.yml
+stages:
+  - build
+
+build:
+  stage: build
+  image: mcr.microsoft.com/dotnet/sdk:10.0.403
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "lundi23"
+    # - if: $CI_COMMIT_BRANCH =~ /^(main|lundi23)$/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - dotnet restore
+    - dotnet build --no-restore --configuration Release

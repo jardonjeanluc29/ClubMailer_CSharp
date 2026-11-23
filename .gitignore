@@ -1,6 +1,10 @@
 # =========================================================
-#  .gitignore pour projets C# / .NET
-#  (Visual Studio, VS Code, Rider)
+#  .gitignore — ClubMailer (C# / .NET 10)
+#  Éditeurs : Visual Studio, VS Code, Rider
+#
+#  RÈGLE RGPD : tout nouveau fichier qui contient des données
+#  de participants doit être couvert ici AVANT le premier commit.
+#  Vérifier avec :  git check-ignore -v --no-index <fichier>
 # =========================================================
 
 # ---------- Sorties de compilation ----------
@@ -11,8 +15,6 @@
 x64/
 x86/
 [Aa][Rr][Mm]64/
-[Ll]og/
-[Ll]ogs/
 out/
 publish/
 artifacts/
@@ -37,6 +39,11 @@ artifacts/
 .idea/
 *.sln.iml
 
+# ---------- Claude Code ----------
+# settings.json (partagé, bloque la lecture de exemple.cs) reste suivi ;
+# settings.local.json contient les réglages personnels de la machine.
+.claude/settings.local.json
+
 # ---------- NuGet ----------
 *.nupkg
 *.snupkg
@@ -56,12 +63,12 @@ project.fragment.lock.json
 coverage*.json
 coverage*.xml
 coverage*.info
-TestResults/
 
 # ---------- Fichiers temporaires / cache ----------
 *.tmp
 *.cache
-*.log
+*.bak
+*.orig
 *.pdb
 *.ilk
 *.obj
@@ -72,9 +79,12 @@ TestResults/
 *.tli
 *.tlh
 ScaffoldingReadMe.txt
+# Dossier de fichiers mis de côté avant suppression (peut contenir des données)
+_to_delete/
 
 # ---------- Secrets & config locale ----------
-# Ne JAMAIS committer de mots de passe (SMTP, API, BDD...)
+# Ne JAMAIS committer de mots de passe (SMTP, API Anthropic, BDD...).
+# Les vrais secrets vont dans les user-secrets (hors du dépôt).
 appsettings.Development.json
 appsettings.Local.json
 *.local.json
@@ -82,21 +92,34 @@ appsettings.Local.json
 .env.*
 !.env.example
 secrets.json
+*.pfx
+*.key
 
-# ---------- Fichiers Sensibles et CSV ----------
+# ---------- Données personnelles (RGPD) ----------
+# Exports d'inscriptions et fichiers de données
 *.csv
+*.tsv
+*.xlsx
+*.xls
+*.ods
+# Fichiers produits par l'application
 liste_diffusion.json
-<<<<<<< HEAD
-# Exception pour le fichier anonyme
+rapport_*.json
+# Journaux (peuvent contenir des noms et des emails)
+*.log
+[Ll]og/
+[Ll]ogs/
+# Exception : fichiers de test anonymisés (données inventées uniquement).
+# Chemin à aligner au Module 9 ter (prévu : tests/ClubMailer.Tests/Fixtures/).
 !tests/data/*.csv
-=======
->>>>>>> 5895514 ([GITIGNORE] Rajout Gitignore)
 
-# ---------- Bases de données locales ----------
+# ---------- Bases de données locales (SQLite, Module 11) ----------
 *.db
+*.db-journal
 *.db-shm
 *.db-wal
 *.sqlite
+*.sqlite3
 *.mdf
 *.ldf
 
@@ -110,8 +133,4 @@ $RECYCLE.BIN/
 .DS_Store
 ._*
 # Linux
-<<<<<<< HEAD
 *~
-=======
-*~
->>>>>>> 5895514 ([GITIGNORE] Rajout Gitignore)

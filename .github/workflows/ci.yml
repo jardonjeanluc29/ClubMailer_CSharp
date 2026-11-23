@@ -1,0 +1,37 @@
+# Fichier : .github/workflows/ci.yml
+name: CI ClubMailer (.NET)
+
+# Déclencheurs : à chaque push sur main ou lundi23, et à chaque demande de fusion vers main
+on:
+  push:
+    branches: ["main", "lundi23"]
+  pull_request:
+    branches: ["main"]
+
+# Droits minimaux : le workflow peut seulement lire le dépôt
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # Machine virtuelle Linux (les commandes y tournent sous bash)
+    runs-on: ubuntu-latest
+
+    steps:
+      # Étape 1 : télécharge le code sur le runner
+      - name: Récupération du code source
+        uses: actions/checkout@v7
+
+      # Étape 2 : installe le SDK .NET dont la version est lue dans global.json
+      - name: Installation de .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      # Étape 3 : télécharge les paquets NuGet (CsvHelper, MailKit...)
+      - name: Restauration des paquets NuGet
+        run: dotnet restore
+
+      # Étape 4 : compile le projet en mode Release, sans refaire la restauration
+      - name: Compilation du projet
+        run: dotnet build --no-restore --configuration Release
