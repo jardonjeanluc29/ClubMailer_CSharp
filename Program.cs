@@ -6,19 +6,16 @@ using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
     builder.SetMinimumLevel(LogLevel.Information);
 });
 ILogger logger = loggerFactory.CreateLogger("ClubMailer");
-ILogger<LectureCSV> logger2 = loggerFactory.CreateLogger<LectureCSV>();
-LectureCSV classLecteur = new LectureCSV(logger2);
-
-logger.LogInformation("Welcome in ClubMailer v0.1, nous sommes le : {Date}", DateTime.Now);
-
-
+ILogger<LectureCSV> loggerLecture = loggerFactory.CreateLogger<LectureCSV>();
 
 try
 {
+    LectureCSV classLecteur = new LectureCSV(loggerLecture);
+    logger.LogInformation("Welcome in ClubMailer v0.1, nous sommes le : {Date}", DateTime.Now);
     // Si on passe la fonction le fichier existe et n'est pas vide
     await classLecteur.ReadCsv();
 }
-catch  (Exception ex) when (ex is FileNotFoundException or InvalidDataException)
+catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or InvalidOperationException)
 {
     logger.LogError(ex, "[Application]Impossible de lire le fichier CSV.");
     Environment.ExitCode = 1;

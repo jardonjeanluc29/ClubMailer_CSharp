@@ -315,9 +315,9 @@ public class LectureCSV
                     if (i > 1 && envoiPossible)
                     {
                         // Seul un échec réseau mène à un 2e essai : le mail précédent a peut-être déjà été remis.
-                        _logger.LogWarning("Nouvelle tentative {Tentative}/{NbreEnvoiMax} pour {NomComplet} : le mail précédent a peut-être déjà été remis.", i, nbreEnvoiMax, p.NomComplet);
+                        _logger.LogWarning("[Connexion]Nouvelle tentative {Tentative}/{NbreEnvoiMax} pour {NomComplet} : le mail précédent a peut-être déjà été remis.", i, nbreEnvoiMax, p.NomComplet);
                         await Task.Delay(delayEnvoiDeco);
-                    }
+                    } else { _logger.LogWarning("[Connexion]Tentative de connexion {i} pour {NomComplet}.", i, p.NomComplet); }
                     // GESTION PROBLEME CONNEXION
                     if (!facteur.IsConnected() && envoiPossible)
                     {
@@ -366,20 +366,20 @@ public class LectureCSV
                         {
                             compteurSimulation++;
                             string simuleModeSimulation = string.Join(", ", messageRecipient.Address);
-                            _logger.LogInformation("Destinataire(s) Simulé(s) : {ParticipantSimule}", simuleModeSimulation);
+                            _logger.LogInformation("[Mail]Destinataire(s) Simulé(s) : {ParticipantSimule}", simuleModeSimulation);
                             break;
                         }
                     }
                     catch (IOException ioEx)
                     {
-                        _logger.LogError(ioEx, "Déconnecté du serveur Serveur. \nParticipant : {NomComplet}.", p.NomComplet);
+                        _logger.LogError(ioEx, "[Serveur]Déconnecté du serveur Serveur. \nParticipant : {NomComplet}.", p.NomComplet);
                         SendingErrorLog.WriteSendingErrorsLog(ioEx, p);
                         if (i == nbreEnvoiMax) { compteurErreur++; }
                     }
                     catch (Exception ex)
                     {
                         compteurErreur++;
-                        _logger.LogError(ex, "La procédure d'envoi d'email n'a pas pu aboutir.\nParticipant : {NomComplet}.", p.NomComplet);
+                        _logger.LogError(ex, "[Mail]La procédure d'envoi d'email n'a pas pu aboutir.\nParticipant : {NomComplet}.", p.NomComplet);
                         SendingErrorLog.WriteSendingErrorsLog(ex, p);
                         break;
                     }
