@@ -9,11 +9,20 @@ using MailKit.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Net.Sockets;
+using System.Net;
+using CsvHelper;
+using CsvHelper.Configuration.Attributes;
+using CsvHelper.Delegates;
+using MimeKit.Encodings;
 
 public class LectureCSV
 {
-    //private static readonly string _cheminCsv = "participant_pointVirgule.csv";
-    private static readonly string _cheminCsv = "participantsLight.csv";
+
+    //Version Longue UTF-8 
+    private static readonly string _cheminCsv = "participant_pointVirgule.csv";
+    // Version Allegée UTF-8 private static readonly string _cheminCsv = "participantsLight.csv";
+    // Version Tabulation 1252 private static readonly string _cheminCsv = "participant_tabulation.csv";
+    // Version Allegée UTF-8 Test Colonne Manquante private static readonly string _cheminCsv = "testColonneManquante.csv";
 
     private readonly EnvoiSettings envoiSetting;
     private static bool envoiPossible = false;
@@ -30,8 +39,7 @@ public class LectureCSV
     private readonly SmtpEmailSender facteur;
 
     private readonly ILogger<LectureCSV> _logger;
-
-
+    // Constructeur d'instance 
     public LectureCSV(ILogger<LectureCSV> pIlogger)
     {
         this._logger = pIlogger;
@@ -52,20 +60,15 @@ public class LectureCSV
 
     public async Task ReadCsv()
     {
-        if (!File.Exists(_cheminCsv)) { throw new FileNotFoundException($"Le fichier {_cheminCsv} est introuvable."); }
-        using var lecteurCSV = new StreamReader(_cheminCsv);
-        // Ici le "new" fait que le fichier n'est pas encore lu donc je peux configurer le CSV configuration
-        if (lecteurCSV.Peek() == -1)
-        {
-            _logger.LogWarning("Fichier Vide");
-            return;
-        }
-        _logger.LogInformation("Fichier Trouvé !");
+        // Le fichier existe-t-il et n'est-il pas vide ? (lance une exception sinon)
+        DetecterFichierNullEmpty(_cheminCsv);
+        // Quel séparateur ? (renvoie ";" ou "\t", ou lance une exception)
+        string delimiteur = DetectDelimiterCSV(_cheminCsv);
+
         var config = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
             TrimOptions = TrimOptions.Trim,
-            DetectDelimiter = true,
-            DetectDelimiterValues = ["\t", ";"],
+            Delimiter = delimiteur,
             // ShouldSkipRecord attend obligatoirement un bool (true = on saute la ligne, false = on la garde).
             // 1. Record? : la ligne peut être null (au début ou en fin de fichier), le "?." évite le plantage et passe null.
             // 2. .All(...) : vérifie si TOUTES les cellules de cette ligne sont vides ou ne contiennent que des espaces.
@@ -74,33 +77,82 @@ public class LectureCSV
             // Formatage majuscules/minuscules, ni des espaces avant ou après le mot.
             PrepareHeaderForMatch = arg => arg.Header.ToLowerInvariant().Trim()
         };
-        using var csvFile = new CsvHelper.CsvReader(lecteurCSV, config, false);
 
-        csvFile.Read(); // Je met le curseur sur la premiere ligne 
+        // On test l'encodage pour etre sur du bon format dans la création
+        using var lecteurCSV = LecteurAvecBonEncodage(_cheminCsv);
+        string encodage = lecteurCSV.CurrentEncoding.WebName;
+        _logger.LogInformation("Encodage détecté : {Encodage}", encodage);
 
-        csvFile.ReadHeader(); // J'indique que c est le header 
-        string[]? headers = csvFile.HeaderRecord;
-        // Gestion du null sur l'affichage console des Headers du fichier
-        //Console.WriteLine(headers is not null ? string.Join(",",headers) : "Empty");
-        _logger.LogInformation(string.Join(",", headers ?? ["Empty"]));
+        // On passe le Lecteur finalisé au Package CsvHelper.CsvReader
+        // Note IA : le false est leaveOpen (« laisser le flux ouvert »). 
+        // Avec false, fermer le CsvReader ferme aussi le StreamReader. 
+        // Les deux using ferment donc le même fichier. C'est sans danger : appeler Dispose() deux fois est permis.
+        // using var csvFile = new CsvReader(lecteurCSV, config, leaveOpen: false);
+        // Donc pas besoin du premier Using en THEORIE : En C#, il existe une règle simple et universelle : « Celui qui crée un objet IDisposable (avec new) est responsable de le mettre dans un using. »
+        using CsvReader csvFile = new CsvHelper.CsvReader(lecteurCSV, config, false);
 
+
+        // Ici on indique quel ClassMap choisir quand on fait ToList Participant
+        //  ( il sait que c est notre ClassMap qu il faut prendre avec nos optional etc et pas celle qui genere lui meme à partir de participant)
         csvFile.Context.RegisterClassMap<ParticipantMap>();
-        List<Participant> listeParticipants = csvFile.GetRecords<Participant>().ToList();
+        DetecterHeaderManquant(csvFile);
+
+        List<string> listeHeadersOptionalDuFichierManquant = DetecterHeadersOptionnelsManquants(csvFile);
+        if (listeHeadersOptionalDuFichierManquant.Any())
+        {
+            _logger.LogWarning(
+    "Il y a {Count} header(s) optionnel(s) manquant(s) dans le CSV : {Manquants}.",
+    listeHeadersOptionalDuFichierManquant.Count,
+    string.Join(", ", listeHeadersOptionalDuFichierManquant));
+        }
+        else { _logger.LogInformation("Aucun Headers Optionnels Manquant"); }
+
+        string[] listeHeadersCompleteDuFichier = AfficherHeaders(csvFile);
+        _logger.LogInformation("Liste des Headers dans le Csv : {Headers}.", string.Join(",", listeHeadersCompleteDuFichier));
+
+        List<Participant> listeParticipants = csvFile.GetRecords<Participant>()
+        //.Where(ligne => !ligne.ChampsTextCsvMvp.All(string.IsNullOrWhiteSpace))
+        .ToList();
+        // [IMPORTANT] Ici : on attrape un Header Manquant (qui n'est pas Optional et donc nécessaire au programme)  mais on a verifié avant donc aucun risque      
 
 
-        // Je veux lmettre les "sans temps" en dernier : 
-        _logger.LogInformation("Nombre d'inscriptions extraite du fichier : {NombreParticipants}", listeParticipants.Count);
+        // Nombre de Lignes du Fichier CSV BRUT : 
+        int lignesTotalFichierBrut = listeParticipants.Count;
+        _logger.LogInformation("Nombre de lignes du fichier : {NbreLignes}", lignesTotalFichierBrut);
+
+
+        // On va nettoyer de la liste, les lignes d'entête qui se répêtent
+        // La condition : soit Faux 
+        // => TOUS les champs de la liste qui ont le nom correspondant à ChampsTextCsvMvp 
+        // => Doivent etre Contenu dans la liste des Headers
+        // Si c est le cas : c'est une répétition du header donc on n'en veut pas comme une ligne d'inscription.
+        // C'est moins compréhenssible au premier abord mais on utilise listeHeaders... pour comparer la présence et pas l'inverse car :
+        // ChampsTextCsvMvp est une liste réduite des champs, listeHeaders est complete elle normalement.
+        List<Participant> listeParticipantSansDoublonHeaders = listeParticipants
+        .Where(p => !p.ChampsTextCsvMvp.All(champ => listeHeadersCompleteDuFichier.Contains(champ, StringComparer.OrdinalIgnoreCase)))
+        .ToList();
+        // Nombre de Lignes retirées du Fichier CSV : 
+        int lignesRetirees = listeParticipants.Count - listeParticipantSansDoublonHeaders.Count;
+        _logger.LogInformation("Nombre de lignes retirées du fichier (Répétition Headers) : {NbreLignesRetirées}", lignesRetirees);
+        // Nombres Total D'inscription du fichier Brut.
+        int lignesInscriptions = listeParticipantSansDoublonHeaders.Count;
+        _logger.LogInformation("[CSV Information]Nombre d'inscriptions extraite du fichier : {NombreParticipants}", lignesInscriptions);
+        if (lignesTotalFichierBrut - (lignesInscriptions + lignesRetirees) != 0)
+        {
+            _logger.LogInformation("Le fichier n'est pas Valide");
+            throw new InvalidDataException("Le fichier n'est pas Valide, impossible de traiter les lignes correctement.");
+        }
 
 
         // On va utiliser la méthode native de .net pour valider la presence d'email (valide) ou non 
 
-        List<Participant> listeAvecEmailValide = listeParticipants
+        List<Participant> listeAvecEmailValide = listeParticipantSansDoublonHeaders
         // est devenu facultatif, la methode le fait déjà ensuite 
         // .Where<Participant>(p => !string.IsNullOrWhiteSpace(p.Email))
         .Where<Participant>(p => ValidationEmail.IsEmailValid(p.Email) == ResultatEmail.Valide)
         .ToList();
 
-        List<Participant> participantsRejetes = listeParticipants
+        List<Participant> participantsRejetes = listeParticipantSansDoublonHeaders
         .Where<Participant>(p => ValidationEmail.IsEmailValid(p.Email) != ResultatEmail.Valide)
         .ToList();
 
@@ -222,7 +274,7 @@ public class LectureCSV
                     envoiPossible = false;
                     envoiReelPossible = false;
                 }
-                _logger.LogWarning("Vous avez répondu : {ReponseUser}.",reponseUser);
+                _logger.LogWarning("Vous avez répondu : {ReponseUser}.", reponseUser);
             }
             if (envoiPossible) { await facteur.ConnexionAsync(); }
             foreach (var p in listeEmails)
@@ -255,7 +307,7 @@ public class LectureCSV
                         await EnsureConnectedAsync(p);
                         if (!facteur.IsConnected())
                         {
-                            throw new InvalidOperationException("Connexion SMTP perdue : reconnexion impossible après {nbreEssais} essais.");
+                            throw new InvalidOperationException($"Connexion SMTP perdue : reconnexion impossible après {nbreEssais} essais.");
                         }
                     }
                     try
@@ -315,7 +367,7 @@ public class LectureCSV
                     }
                     finally
                     {
-                        _logger.LogInformation("Tentative numéro {i} Fin de la procédure de reconnexion pour {ParticipantNomComplet}.", i, p.NomComplet);
+                        //_logger.LogInformation("Tentative numéro {i} Fin de la procédure de reconnexion pour {ParticipantNomComplet}.", i, p.NomComplet);
                     }
                 }
             }
@@ -340,17 +392,19 @@ public class LectureCSV
             _logger.LogInformation("Fin de la procédure d'envoi d'email.");
             await facteur.CloseConnectionAsync();
         }
-        
+
         string compteRendu;
-        if (envoiPossible) {
+        if (envoiPossible)
+        {
             int compteurNoneTreated = listeEmails.Count - (compteurAccepted + compteurRejeted + compteurErreur + compteurSansEmail);
             compteRendu = $"\nMails à envoyer : {listeEmails.Count}.\nMails envoyés : {compteurAccepted}.\nMails Rejetés : {compteurRejeted}.\nMails non traités : {compteurNoneTreated}.\nÉchecs d'envoi : {compteurErreur}.\nEmail absent : {compteurSansEmail}.";
-        } else { 
+        }
+        else
+        {
             int compteurNoneTreated = listeEmails.Count - (compteurSimulation + compteurErreur + compteurSansEmail);
             compteRendu = $"\nMails à envoyer : {listeEmails.Count}.\nMails simulés : {compteurSimulation}.\nMails non traités : {compteurNoneTreated}.\nÉchecs d'envoi : {compteurErreur}.\nEmail absent : {compteurSansEmail}.";
         }
         _logger.LogInformation(compteRendu);
-
     }
 
 
@@ -406,12 +460,134 @@ public class LectureCSV
     {
         if (envoiPossible || envoiReelPossible) { throw new Exception("Autorisation Non Accordée pour l'envoi de Mails, vérifiez vos drapeaux."); }
         if (pSettingModeEnvoi.Mode != ModeEnvoi.Reel) { throw new Exception("La section Envoi.Mode n'est pas en mode Reel dans appsettings.json !"); }
-        if (string.Equals(pSettingSmtp.Host,"smtp.ethereal.email", StringComparison.OrdinalIgnoreCase)) { throw new Exception($"La section Smtp.Host est configuré avec ETHEREAL : '{pSettingSmtp.Host}' dans appsettings.json !"); }
+        if (string.Equals(pSettingSmtp.Host, "smtp.ethereal.email", StringComparison.OrdinalIgnoreCase)) { throw new Exception($"La section Smtp.Host est configuré avec ETHEREAL : '{pSettingSmtp.Host}' dans appsettings.json !"); }
         //if (pSettingSmtp.Host != "Non Disponible") { throw new Exception("La section Smtp.Host n'est pas configuré avec Non Disponible dans appsettings.json !"); }
         envoiPossible = true;
         envoiReelPossible = true;
         _logger.LogInformation("Configuration Application : Envoi Possible : {Flag} | Envoi Reel Possible : {envoiReelPossible} | ModeEnvoi : {ModeEnvoi} | Serveur : {Host}.", envoiPossible, envoiReelPossible, pSettingModeEnvoi.Mode, pSettingSmtp.Host);
         _logger.LogWarning("[PRODUCTION]Envoi Reel de Mails : Envoi Possible : {Flag} | Envoi Reel Possible : {envoiReelPossible} | ModeEnvoi : {ModeEnvoi} | Serveur : {Host}.", envoiPossible, envoiReelPossible, pSettingModeEnvoi.Mode, pSettingSmtp.Host);
         return "[PRODUCTION]Envoi Réel Possible : Mode Reel";
+    }
+
+    private bool DetecterFichierNullEmpty(string pCheminCsv)
+    {
+        if (!File.Exists(pCheminCsv))
+        {
+            _logger.LogWarning("Fichier {Fichier} Manquant", pCheminCsv);
+            throw new FileNotFoundException($"Le fichier {pCheminCsv} est introuvable.", pCheminCsv);
+        }
+        using var lecteurCSV = new StreamReader(pCheminCsv);
+        if (lecteurCSV.Peek() == -1)
+        {
+            _logger.LogWarning("Fichier {Fichier} Vide", pCheminCsv);
+            throw new InvalidDataException($"Le fichier CSV '{pCheminCsv}' est totalement vide.");
+        }
+        _logger.LogInformation("Fichier {Fichier} Trouvé !", pCheminCsv);
+        return true;
+    }
+    private StreamReader LecteurAvecBonEncodage(string pCheminCsv)
+    {
+        // [IMPORTANT] Ici on renvoi sans USING car sinon il serait fermé avec Dispose() et donc innaccessible ensuite.
+        // On crée un décodeur UTF-8 strict (throwOnInvalidBytes: true)
+        var utf8Strict = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+        try
+        {
+            using (var lecteurCSV = new StreamReader(pCheminCsv, utf8Strict, detectEncodingFromByteOrderMarks: true))
+            {
+                lecteurCSV.ReadToEnd();
+            }
+            // Si aucune exception n'a été levée, le fichier est bien 100 % UTF-8 !
+            // Mis dans la méthode parente _logger.LogInformation("[Fichier]Le {Fichier} est encodé en UTF-8.", pCheminCsv);
+            return new StreamReader(pCheminCsv, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        }
+        catch (DecoderFallbackException)
+        {
+            // Pas du UTF-8 valide : c'est un fichier Excel français (Windows-1252).
+            // CodePagesEncodingProvider.Instance fournit l'encodage sans rien enregistrer
+            // globalement (pas d'état partagé, donc testable sans Program.cs).
+            // GetEncoding peut renvoyer null : on échoue avec un message clair.
+            Encoding windows1252 = CodePagesEncodingProvider.Instance.GetEncoding(1252)
+                ?? throw new InvalidOperationException("L'encodage Windows-1252 n'est pas disponible sur cette machine.");
+            _logger.LogInformation("[Fichier]Le {Fichier} est encodé en Windows-1252.", pCheminCsv);
+            return new StreamReader(pCheminCsv, windows1252);
+        }
+    }
+
+    private string DetectDelimiterCSV(string pCheminCsv)
+    {
+        using StreamReader lecteur = LecteurAvecBonEncodage(pCheminCsv);
+        string? ligneEnTete = lecteur.ReadLine();
+
+        // Fichier sans aucune ligne : rien à analyser.
+        if (string.IsNullOrWhiteSpace(ligneEnTete))
+        {
+            throw new InvalidDataException($"Le fichier CSV '{pCheminCsv}' n'a pas de ligne d'en-tête.");
+        }
+
+        int nbrePointsVirgules = ligneEnTete.Count(c => c == ';');
+        int nbreTabulations = ligneEnTete.Count(c => c == '\t');
+
+        // Aucun des deux, ou autant de l'un que de l'autre : on refuse plutôt que de deviner.
+        if (nbrePointsVirgules == nbreTabulations)
+        {
+            throw new InvalidDataException(
+                $"Format CSV inconnu dans '{pCheminCsv}' : séparateur ';' ou tabulation introuvable ou ambigu dans l'en-tête.");
+        }
+
+        string delimiteur = nbrePointsVirgules > nbreTabulations ? ";" : "\t";
+        _logger.LogInformation("[Fichier]Séparateur détecté : {Separateur}", delimiteur == "\t" ? "tabulation" : delimiteur);
+        return delimiteur;
+    }
+
+    private bool DetecterHeaderManquant(CsvReader pCsv)
+    {
+        try
+        {
+            if (!pCsv.Read() || !pCsv.ReadHeader())
+            {
+                throw new InvalidDataException("Le fichier CSV est vide ou ne contient aucun en-tête.");
+            }
+
+            // IMPORTANT : Passer <Participant> (le modèle), pas <ParticipantMap> !
+            pCsv.ValidateHeader<Participant>();
+
+            return true;
+        }
+        catch (HeaderValidationException headEx)
+        {
+            var manquants = string.Join(", ", headEx.InvalidHeaders.SelectMany(h => h.Names));
+
+            _logger.LogWarning(headEx, "[Headers] Un ou plusieurs Header(s) nécessaire(s) manquant(s) : {HeadersManquants}", manquants);
+            throw new InvalidDataException($"Un ou plusieurs Header(s) nécessaire(s) sont manquants dans le fichier : {manquants}", headEx);
+        }
+    }
+
+
+    private string[] AfficherHeaders(CsvReader pCsv)
+    {
+        if (pCsv.HeaderRecord is null || pCsv.HeaderRecord.Length == 0)
+        {
+            throw new InvalidDataException("Aucun Headers dans le Csv");
+        }
+        return pCsv.HeaderRecord;
+    }
+
+    private List<string> DetecterHeadersOptionnelsManquants(CsvReader pCsv)
+    {
+        // Le "?? throw" : si HeaderRecord vaut null, on lance l'exception à la place de continuer.
+        string[] headersCsv = pCsv.HeaderRecord ?? throw new InvalidOperationException("Les en-têtes n'ont pas été lus : appeler DetecterHeaderManquant d'abord.");
+
+        // Je récupère le mapping pour les headers du Records , si il ne trouve pas le mapping (ParticipantMap, il renverra null => on crée une exception pour le signaler)  
+        ClassMap mapParticipant = pCsv.Context.Maps.Find<Participant>() ?? throw new InvalidOperationException("La ClassMap pour Participant est absente.");
+        // Je lui dis lesquels prendre, on veut les Optional().
+
+        List<string> headerMappingOptionalManquant = mapParticipant.MemberMaps
+        .Where(m => m.Data.IsOptional)
+        // Ici le Any est important pour comparer la présence d au moins UN dans une liste. Il renvoi tru si il y en AUNCUN pour tous les noms possibles
+        .Where(nomColonneOptional => !nomColonneOptional.Data.Names.Any(nomColonnePossible => headersCsv.Contains(nomColonnePossible, StringComparer.OrdinalIgnoreCase)))
+        .SelectMany(headersPossibleManquant => headersPossibleManquant.Data.Names)
+        .ToList();
+        // Ensuite on renvoi la liste des Headers Manquant
+        return headerMappingOptionalManquant;
     }
 }

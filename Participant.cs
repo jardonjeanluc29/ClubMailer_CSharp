@@ -10,12 +10,14 @@ record Participant
     public required string Nom { get; init;}
     public required string Prenom { get; init;}
     public required string? Email { get; init;}
-    public required string Sexe { get; init;}
+    public required string? Sexe { get; init;}
     public required string? DateDeNaissance { get; init;}
     public required string? Mobile { get; init;}
     public required string Licence { get; init;}
     public required string? Club { get; init;}
     public bool NageursBigouden => Club?.Contains("bigouden", StringComparison.OrdinalIgnoreCase) == true;
+
+    public string?[] ChampsTextCsvMvp => [Epreuve, Nom, Prenom, Licence];
 
     //LES NAGEURS BIGOUDENS
     [JsonIgnore][CsvHelper.Configuration.Attributes.Ignore]   // Serialize ignorera cette propriété
