@@ -501,7 +501,7 @@ public class LectureCSV
 
     private string DetectDelimiterCSV(string pCheminCsv)
     {
-        using StreamReader lecteur = LecteurAvecBonEncodage(pCheminCsv);
+        using StreamReader lecteur = new StreamReader(pCheminCsv);
         string? ligneEnTete = lecteur.ReadLine();
 
         // Fichier sans aucune ligne : rien à analyser.
