@@ -6,7 +6,9 @@ Ce fichier n'est **pas** le cadre pédagogique (ça, c'est le skill `tuteur-csha
 
 ## Dernier état (à mettre à jour à chaque session)
 
-- **Reprise du 25/11/2026 : aucun écart code / avancement.** `dotnet build` : 0 avertissement, 0 erreur ; `main` = `origin/main` = `cicd/main` (`795be06`) ; `user.email` du dépôt = adresse de travail ; fichiers sensibles tous ignorés, aucun suivi par Git. Seule modification non committée : `AVANCEMENT.md`. Pas encore de dossier `tests/`. **Prochain : question de vérification du 9 bis, puis ouverture du Module 9 ter.**
+- **Reprise du 25/11/2026 (après-midi), Module 9 ter, étape 2 commencée mais pas validée.** Constaté : `tests/ClubMailer.tests/` (le dossier s'écrit avec un `t` minuscule, alors que le plan prévoit `ClubMailer.Tests`) contient `ClubMailer.Tests.csproj` (xUnit v3 `xunit.v3.mtp-v2` 4.0.3, **`TargetFramework` = `net8.0`** alors que l'application est en `net10.0`), `UnitTest1.cs` (test trivial généré) et `xunit.runner.json`. **Pas encore** : référence de projet vers `src/ClubMailer/ClubMailer.csproj`, ajout du projet de test dans `ClubMailer.slnx` (il ne liste que `src/ClubMailer`), `dotnet test` jamais lancé. `global.json` modifié (ajout de `"test": { "runner": "Microsoft.Testing.Platform" }`, non committé). `dotnet build ClubMailer.slnx` : 0 avertissement, 0 erreur. Fichiers sensibles (CSV, journaux, `liste_diffusion.json`) : tous ignorés, aucun suivi. `user.email` = adresse de travail. Variables `Smtp__*` / `Envoi__*` : absentes. Non committés : `.gitignore` (réécrit et commenté), `global.json`, `AVANCEMENT.md`, `ClubMailer.slnx`, `tests/`, et les 14 renommages en `src/ClubMailer/`. Code : 646 lignes dans `src/` (Claude 0 depuis le début du suivi). **Prochain : finir l'étape 2 (cible `net10.0`, référence de projet, ajout à la solution, `dotnet test` vert).**
+
+- **Reprise du 25/11/2026 : aucun écart code / avancement.** `dotnet build` : 0 avertissement, 0 erreur ; `main` = `origin/main` = `cicd/main` (`795be06`) ; `user.email` du dépôt = adresse de travail ; fichiers sensibles tous ignorés, aucun suivi par Git. Seule modification non committée : `AVANCEMENT.md`. Pas encore de dossier `tests/`. **Question de vérification du 9 bis : réussie (25/11/2026)** (badges rouges si le build échoue ; précisé : `dotnet build` n'a besoin d'aucun secret, donc rien à divulguer sur un dépôt public et les forks ont un pipeline vert ; les secrets ne servent qu'à l'exécution, en local). **Prochain : ouverture du Module 9 ter (en cours d'ouverture, relecture de la base faite).**
 
 - **MODULE 9 BIS TERMINÉ (23/11/2026).** `README.md` corrigé et committé (commit `795be06`), `main` = `origin/main` = `cicd/main` ; historique réécrit par Jean-Luc pour changer l'email d'auteur (hashs changés, envoi forcé fait) ; aucun fichier sensible ni `exemple.cs` dans l'historique des branches locales. Jean-Luc confirme que les deux pipelines sont verts. **Prochain : question de vérification du 9 bis, puis Module 9 ter (premiers tests xUnit v3, projet `tests/ClubMailer.Tests`).** À prévoir au 9 ter : exception `.gitignore` `!tests/data/*.csv` à aligner sur `tests/ClubMailer.Tests/Fixtures/`.
 
@@ -38,6 +40,17 @@ Ce fichier n'est **pas** le cadre pédagogique (ça, c'est le skill `tuteur-csha
 
 ## Plan en cours
 
+### Module 9 ter — Premiers tests xUnit (ouvert le 25/11/2026)
+
+- **Objectif final** : un projet `tests/ClubMailer.Tests` (xUnit v3) qui vérifie la lecture des deux formats d'export avec de faux CSV anonymes, `dotnet test` vert en local ET dans les deux pipelines. Code de l'application déplacé dans `src/ClubMailer/`, solution `.slnx` à la racine.
+- ✅ 1. (validée le 25/11/2026 : 14 renommages purs `git mv` sans modification de contenu, `ClubMailer.slnx` créé, build 0/0, CSV/journaux/JSON déplacés et toujours ignorés, aucun fichier sensible suivi ; restes sans gravité à la racine : `bin/`, `obj/`, `_to_delete/` vides ou ignorés) Déplacer le code dans `src/ClubMailer/` + créer la solution ; `dotnet build` vert. Piège : les fichiers non suivis (CSV, journaux, `bin/`, `obj/`) ne suivent pas `git mv` ; le code lit `participantsLight.csv` dans le dossier courant.
+- ✅ 2. (validée le 25/11/2026 : dossier `tests/ClubMailer.Tests`, cible `net10.0`, `ProjectReference` vers `src/ClubMailer`, projet listé dans `ClubMailer.slnx`, `dotnet test --solution ClubMailer.slnx` = 1 test réussi ; `.gitlab-ci.yml` corrigé en `sdk:10.0`, tag mouvant, écart résolu) Projet `tests/ClubMailer.Tests` + référence de projet + un premier test trivial ; `dotnet test` vert.
+- ▶️ 3. (guide ; 3a ✅ validée le 25/11/2026 : Jean-Luc a choisi l'option B, `src/ClubMailer/AssemblyInfo.cs` avec `[assembly: InternalsVisibleTo("ClubMailer.Tests")]`, `.csproj` inchangé, build 0/0 ; 3b ✅ validée le 25/11/2026 : `tests/ClubMailer.Tests/ValidationEmailTests.cs` (3 `[Theory]` + 1 `[Fact]`), `UnitTest1.cs` supprimé, `dotnet test --solution ClubMailer.slnx` = 10 tests réussis ; reste un détail : remplacer les adresses `@gmail.com` des tests par des adresses `@example.com` avant le push public ; cas limites de `MailAddress` à tester plus tard. Commits prévus : d'abord le déplacement vers `src/` seul (renommages déjà indexés), puis le reste) `InternalsVisibleTo` (`Participant`, `ParticipantMap` sont internes) puis `[Theory]` sur `ValidationEmail.IsEmailValid`.
+- ⬜ 4. (guide) Rendre `LectureCSV` testable : chemin du CSV en paramètre (aujourd'hui constante `_cheminCsv`), détection encodage / séparateur / colonnes sortie de `ReadCsv()` (qui écrit aussi `liste_diffusion.json` et `email_invalide.log` et envoie les mails).
+- ⬜ 5. (guide) Faux CSV anonymes dans `tests/ClubMailer.Tests/Fixtures/` ; tests : formats A et B, format inconnu, BOM, colonnes manquantes, lignes vides, en-têtes répétés.
+- ⬜ 6. (guide) `dotnet test` dans `ci.yml` ET `.gitlab-ci.yml` ; exception `.gitignore` alignée ; deux pipelines verts.
+- Écart résolu le 25/11/2026 : `.gitlab-ci.yml` utilise `image: mcr.microsoft.com/dotnet/sdk:10.0` (tag mouvant, comme décidé le 23/11).
+
 - **Objectif final (Module 9)** : lire les deux formats d'export (A : `;` + UTF-8 avec BOM ; B : tabulation + Windows-1252), détection automatique, vérification des colonnes, refus d'un format inconnu avec message clair, format journalisé. Mode : « guide ». (Le plan du drapeau `Envoi:Mode` est terminé : voir « Dernier état ».)
 - ✅ 1. Données protégées : `.gitignore` (`*.csv`, `liste_diffusion.json`, exception pour un CSV anonyme), fichiers sortis de l'index, historique réécrit par Jean-Luc (dépôt GitHub privé).
 - ✅ 2. Encodage : `LecteurAvecBonEncodage` (UTF-8 strict sinon Windows-1252 via `CodePagesEncodingProvider.Instance.GetEncoding(1252) ?? throw`, sans état global, plus rien dans `Program.cs`).
@@ -48,7 +61,11 @@ Ce fichier n'est **pas** le cadre pédagogique (ça, c'est le skill `tuteur-csha
 - ✅ (constaté à la reprise du 21/11/2026) `try/catch` dans `Program.cs` autour de `await classLecteur.ReadCsv()` : fait (filtre `when (ex is FileNotFoundException or InvalidDataException)`, `LogError`, `Environment.ExitCode = 1`). `appsettings.json` est bien en `Simulation`. Étape 4 pas encore commencée : `ParticipantMap.cs` n'a aucun `.Optional()` et `LectureCSV.cs` ne capte pas encore `HeaderValidationException`. Petit bug vu : `LectureCSV.cs` ligne 268, la chaîne `"... après {nbreEssais} essais."` n'a pas de `$` (le texte affichera `{nbreEssais}` tel quel).
 - **À faire en parallèle, quand Jean-Luc veut** : supprimer `_to_delete/`.
 
-## Fichiers clés du module en cours (Module 9 — Lire le vrai export CSV)
+## Fichiers clés du module en cours (Module 9 ter — tests ; liste posée le 25/11/2026)
+
+- `LectureCSV.cs` (610 lignes, fait tout : lecture, config, envoi), `Participant.cs` et `ParticipantMap.cs` (internes, sans `namespace`), `ValidationEmail.cs` / `ResultatEmail.cs` (première cible de test), `ClubMailer.csproj`, `global.json`, `.github/workflows/ci.yml`, `.gitlab-ci.yml`, `.gitignore` (exception `!tests/data/*.csv` à remplacer), `README.md`. À créer : `ClubMailer.slnx`, `tests/ClubMailer.Tests/`.
+
+## (ancien) Fichiers clés du Module 9 — Lire le vrai export CSV
 
 - `Program.cs` — point d'entrée : lit le CSV, construit la liste de diffusion, lance la boucle d'envoi (c'est la partie lecture CSV, lignes 1 à 135, qui change dans ce module).
 - `Participant.cs` — le `record` qui décrit une ligne du CSV d'exemple (7 colonnes) ; sera complété ou remplacé par un `ClassMap`.
@@ -58,6 +75,17 @@ Ce fichier n'est **pas** le cadre pédagogique (ça, c'est le skill `tuteur-csha
 - `LectureCSV.cs` — classe `LectureCSV` (créée le 19/11/2026, renommée en PascalCase ; contient maintenant aussi la lecture de la configuration, ligne 161, et la boucle d’envoi) : lecture d'un CSV à part de `Program.cs` ; première étape : afficher les en-têtes du fichier `participant_pointVirgule.csv`.
 - `.gitignore` — à compléter pour exclure le vrai export (données personnelles, dont des mineurs).
 - Fichiers à ne pas toucher dans ce module : `services/SmtpEmailSender.cs`, `services/SendingErrorLog.cs`, `services/MailBodyBuilder.cs`, `config/SmtpSettings.cs`, `appsettings.json` (sauf test réseau réel en fin de module).
+## Part du code écrite par Claude (suivi ouvert le 25/11/2026)
+
+- **Méthode** : on compte les lignes de code (non vides, hors commentaires) des fichiers `.cs` de `src/` et `tests/`, sans `bin/` ni `obj/`. Une ligne compte « Claude » si Claude l'a écrite ou réécrite : modification directe d'un fichier, ou code complet (mode « corrige », exemple prêt à copier) que Jean-Luc a recopié. Les lignes que Jean-Luc écrit à partir d'un squelette à trous ou d'un indice (« oriente », « guide ») comptent « Jean-Luc ».
+- **Avant le 25/11/2026** : non mesuré, aucune trace fiable (tous les commits sont au nom de Jean-Luc). Estimation de Jean-Luc : *à compléter*.
+- **Mesure du 25/11/2026** : 653 lignes de code dans `src/` (dont 454 dans `LectureCSV.cs`). Part Claude depuis le début du suivi : 0 ligne, soit 0 %. Part Jean-Luc : 100 % du code mesuré depuis cette date.
+- **Journal des lignes écrites par Claude** :
+
+| Date | Fichier → élément | Lignes | Mode | Encore présentes ? |
+|------|-------------------|--------|------|--------------------|
+| — | — | — | — | — |
+
 ## Historique des modules
 
 - [x] Module 0 — Installation & premier programme

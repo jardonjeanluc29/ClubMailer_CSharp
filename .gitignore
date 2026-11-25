@@ -1,13 +1,43 @@
-# =========================================================
+# =====================================================================
 #  .gitignore — ClubMailer (C# / .NET 10)
-#  Éditeurs : Visual Studio, VS Code, Rider
 #
-#  RÈGLE RGPD : tout nouveau fichier qui contient des données
-#  de participants doit être couvert ici AVANT le premier commit.
-#  Vérifier avec :  git check-ignore -v --no-index <fichier>
-# =========================================================
+#  À QUOI SERT CE FICHIER
+#  Il donne à Git la liste des fichiers qu'il doit IGNORER : il ne les
+#  propose jamais dans "git status" et ne les envoie jamais sur GitHub
+#  ou GitLab. Les dépôts "cicd" sont PUBLICS : tout ce qui n'est pas
+#  ignoré ici peut devenir lisible par n'importe qui.
+#
+#  ATTENTION : ce fichier n'agit que sur les fichiers que Git ne suit
+#  PAS encore. Un fichier déjà committé reste suivi même si on l'ajoute
+#  ici ; il faut alors le retirer du suivi avec :
+#      git rm --cached <fichier>
+#  (le fichier reste sur le disque, il sort seulement de Git).
+#
+#  COMMENT LIRE LES LIGNES
+#    # texte      -> un commentaire, Git ne le lit pas.
+#    *.log        -> l'étoile * veut dire "n'importe quels caractères" :
+#                    ici, tous les fichiers qui finissent par .log,
+#                    dans n'importe quel dossier.
+#    bin/         -> un nom qui finit par / désigne un DOSSIER (et tout
+#                    ce qu'il contient), où qu'il soit dans le projet.
+#    [Bb]in/      -> les crochets veulent dire "une des lettres" :
+#                    "bin/" ou "Bin/".
+#    **/          -> n'importe quelle profondeur de dossiers.
+#    !motif       -> le ! est une EXCEPTION : "ne pas ignorer ceci",
+#                    même si une ligne au-dessus l'ignorait.
+#                    L'ordre compte : la dernière ligne qui correspond
+#                    à un fichier gagne.
+#
+#  RÈGLE RGPD : tout nouveau fichier qui contient des données de
+#  participants doit être couvert ici AVANT le premier commit.
+#  Vérifier qu'un fichier est bien ignoré, et par quelle ligne :
+#      git check-ignore -v --no-index <fichier>
+# =====================================================================
+
 
 # ---------- Sorties de compilation ----------
+# Fichiers produits par "dotnet build" / "dotnet publish".
+# On ne les committe jamais : ils se recréent à chaque compilation.
 [Bb]in/
 [Oo]bj/
 [Dd]ebug/
@@ -19,7 +49,9 @@ out/
 publish/
 artifacts/
 
+
 # ---------- Visual Studio ----------
+# Réglages personnels de l'éditeur Visual Studio (propres à chaque PC).
 .vs/
 *.user
 *.suo
@@ -28,23 +60,33 @@ artifacts/
 *.rsuser
 *.userprefs
 
+
 # ---------- VS Code ----------
+# On ignore tout le dossier .vscode/ ...
 .vscode/*
+# ... SAUF ces 4 fichiers, utiles à tous ceux qui ouvrent le projet
+# (réglages, tâches, lancement du débogueur, extensions conseillées).
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
 
+
 # ---------- JetBrains Rider ----------
 .idea/
 *.sln.iml
 
+
 # ---------- Claude Code ----------
-# settings.json (partagé, bloque la lecture de exemple.cs) reste suivi ;
-# settings.local.json contient les réglages personnels de la machine.
+# .claude/settings.json est partagé : il reste suivi par Git.
+# .claude/settings.local.json contient les réglages personnels de
+# cette machine : on ne le partage pas.
 .claude/settings.local.json
 
-# ---------- NuGet ----------
+
+# ---------- NuGet (gestionnaire de paquets .NET, comme npm) ----------
+# Paquets téléchargés ou fabriqués localement : ils se retéléchargent
+# avec "dotnet restore".
 *.nupkg
 *.snupkg
 **/packages/*
@@ -54,7 +96,10 @@ artifacts/
 project.lock.json
 project.fragment.lock.json
 
-# ---------- Tests & couverture ----------
+
+# ---------- Tests et couverture de code ----------
+# Résultats produits par "dotnet test" et par les outils qui mesurent
+# la part du code exécutée par les tests (couverture, Module 16).
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
 *.trx
@@ -63,6 +108,7 @@ project.fragment.lock.json
 coverage*.json
 coverage*.xml
 coverage*.info
+
 
 # ---------- Fichiers temporaires / cache ----------
 *.tmp
@@ -79,41 +125,61 @@ coverage*.info
 *.tli
 *.tlh
 ScaffoldingReadMe.txt
-# Dossier de fichiers mis de côté avant suppression (peut contenir des données)
+# Dossier de fichiers mis de côté avant suppression
+# (il peut contenir de vraies données : on ne le committe jamais).
 _to_delete/
 
-# ---------- Secrets & config locale ----------
-# Ne JAMAIS committer de mots de passe (SMTP, API Anthropic, BDD...).
-# Les vrais secrets vont dans les user-secrets (hors du dépôt).
-appsettings.Development.json
-appsettings.Local.json
+
+# ---------- Secrets et configuration locale ----------
+# Ne JAMAIS committer de mot de passe (SMTP, clé d'API Anthropic,
+# base de données...). Les vrais secrets vont dans les user-secrets,
+# qui sont rangés hors du dossier du projet.
+#
+# appsettings.json (sans rien entre "appsettings" et ".json") RESTE
+# suivi : il ne contient que des réglages sans secret.
+# appsettings.*.json = toutes les variantes par environnement
+# (appsettings.Development.json, appsettings.Production.json,
+# appsettings.Local.json...) : on les ignore toutes, car c'est là
+# qu'on est tenté d'écrire un mot de passe.
+appsettings.*.json
 *.local.json
+# Fichiers .env (variables d'environnement, souvent avec des secrets),
+# sauf .env.example, un modèle SANS vraies valeurs.
 .env
 .env.*
 !.env.example
 secrets.json
+# Certificats et clés de chiffrement.
 *.pfx
 *.key
+*.pem
+
 
 # ---------- Données personnelles (RGPD) ----------
-# Exports d'inscriptions et fichiers de données
+# Exports d'inscriptions et tableurs : ils contiennent des noms,
+# emails, téléphones, adresses, dates de naissance (dont des mineurs).
 *.csv
 *.tsv
 *.xlsx
 *.xls
 *.ods
-# Fichiers produits par l'application
+# Fichiers produits par l'application, qui contiennent des participants.
 liste_diffusion.json
 rapport_*.json
-# Journaux (peuvent contenir des noms et des emails)
+# Journaux : ils peuvent contenir des noms et des emails.
 *.log
 [Ll]og/
 [Ll]ogs/
-# Exception : fichiers de test anonymisés (données inventées uniquement).
-# Chemin à aligner au Module 9 ter (prévu : tests/ClubMailer.Tests/Fixtures/).
-!tests/data/*.csv
+# EXCEPTION : les faux CSV des tests automatiques (Module 9 ter),
+# avec des données INVENTÉES uniquement, peuvent être committés.
+# Cette ligne doit rester APRÈS "*.csv" (la dernière règle gagne).
+# Ne jamais y mettre un extrait du vrai export.
+!tests/ClubMailer.Tests/Fixtures/*.csv
+
 
 # ---------- Bases de données locales (SQLite, Module 11) ----------
+# Le fichier de la base et ses fichiers annexes contiennent les
+# participants : jamais dans Git.
 *.db
 *.db-journal
 *.db-shm
@@ -123,7 +189,9 @@ rapport_*.json
 *.mdf
 *.ldf
 
+
 # ---------- Système d'exploitation ----------
+# Fichiers cachés créés automatiquement par Windows, macOS ou Linux.
 # Windows
 Thumbs.db
 ehthumbs.db
@@ -132,5 +200,5 @@ $RECYCLE.BIN/
 # macOS
 .DS_Store
 ._*
-# Linux
+# Linux (copies de sauvegarde de certains éditeurs)
 *~
