@@ -9,12 +9,7 @@ using MailKit.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Net.Sockets;
-using System.Net;
 using CsvHelper;
-using CsvHelper.Configuration.Attributes;
-using CsvHelper.Delegates;
-using MimeKit.Encodings;
-using System.Security.Cryptography;
 
 public class LectureCSV
 {
