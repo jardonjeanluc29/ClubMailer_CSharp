@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using ClubMailer;
+using Microsoft.Extensions.Logging;
 
 using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
 {
@@ -7,10 +8,12 @@ using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
 });
 ILogger logger = loggerFactory.CreateLogger("ClubMailer");
 ILogger<LectureCSV> loggerLecture = loggerFactory.CreateLogger<LectureCSV>();
+ILogger<LecteurParticipants> loggerLecteurParticipants = loggerFactory.CreateLogger<LecteurParticipants>();
 
 try
 {
-    LectureCSV classLecteur = new LectureCSV(loggerLecture);
+    LecteurParticipants lecteurCsv = new LecteurParticipants(loggerLecteurParticipants);
+    LectureCSV classLecteur = new LectureCSV(loggerLecture,lecteurCsv);
     logger.LogInformation("Welcome in ClubMailer v0.1, nous sommes le : {Date}", DateTime.Now);
     // Si on passe la fonction le fichier existe et n'est pas vide
     await classLecteur.ReadCsv();
