@@ -16,10 +16,11 @@ public class LectureCSV
 {
 
     //Version Longue UTF-8 private static readonly string _cheminCsv = "participant_pointVirgule.csv";
-    // Version Allegée UTF-8 
-    private static readonly string _cheminCsv = "participantsLight.csv";
+    // Version Allegée UTF-8 private static readonly string _cheminCsv = "participantsLight.csv";
     // Version Tabulation 1252 private static readonly string _cheminCsv = "participant_tabulation.csv";
     // Version Allegée UTF-8 Test Colonne Manquante private static readonly string _cheminCsv = "testColonneManquante.csv";
+    // Version Allegée UTF-8 Test
+    private static readonly string _cheminCsv = "format_a_valide.csv";
 
     // TODO: A Changer Plus tard et à mettre dans le constructeur je pense.
     private readonly string nomFichier = _cheminCsv; // 
@@ -245,7 +246,7 @@ public class LectureCSV
                         // Seul un échec réseau mène à un 2e essai : le mail précédent a peut-être déjà été remis.
                         _logger.LogWarning("[Connexion]Nouvelle tentative {Tentative}/{NbreEnvoiMax} pour {NomComplet} : le mail précédent a peut-être déjà été remis.", i, nbreEnvoiMax, p.NomComplet);
                         await Task.Delay(delayEnvoiDeco);
-                    } else { _logger.LogWarning("[Connexion]Tentative de connexion {i} pour {NomComplet}.", i, p.NomComplet); }
+                    } else if (envoiPossible) { _logger.LogWarning("[Connexion]Tentative de connexion {i} pour {NomComplet}.", i, p.NomComplet); }
                     // GESTION PROBLEME CONNEXION
                     if (!facteur.IsConnected() && envoiPossible)
                     {
