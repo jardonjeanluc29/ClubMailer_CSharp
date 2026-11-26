@@ -2,6 +2,13 @@ using CsvHelper.Configuration;
 
 sealed class ParticipantMap : ClassMap<Participant>
 {
+    public static readonly string[] NomsColonneLicence =
+    [
+        "N° de licence",
+        "N°_de_licence",
+        "Numéro De Licence",
+        "Numero De Licence"
+    ];
     // Optional() pour tous les champs qui ne relèvent pas du MVP
     public ParticipantMap() {
         Map(m => m.Date).Name("Date").Optional();
@@ -13,7 +20,7 @@ sealed class ParticipantMap : ClassMap<Participant>
         Map(m => m.Sexe).Name("Sexe", "Genre").Optional();
         Map(m => m.DateDeNaissance).Name("Date de Naissance", "Date Naissance").Optional();
         Map(m => m.Mobile).Name("Mobile", "Téléphone Mobile", "Téléphone Portable", "Telephone Mobile", "Telephone Portable").Optional();
-        Map(m => m.Licence).Name("N° de licence", "N°_de_licence", "Numéro De Licence", "Numero De Licence");
+        Map(m => m.Licence).Name(NomsColonneLicence);
         Map(m => m.Club).Name("Club").Optional();
     }
 }
