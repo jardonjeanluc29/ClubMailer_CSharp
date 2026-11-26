@@ -34,7 +34,7 @@ public class ValidationEmailTests
 
     [Theory]
     [InlineData("jean.dupont@example.com")]
-    [InlineData("contact@club-mailer.fr")]
+    [InlineData("contact@example.com")]
     // Variante possible pour l'apprentissage (Pas de deuxième paramètre)
     public void IsEmailvalid_EmailValide_Renvoi_Valide(string pEmail)
     {
