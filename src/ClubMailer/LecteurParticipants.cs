@@ -18,6 +18,7 @@ internal record ResultatLecture(
 
 internal class LecteurParticipants
 {
+   internal const string FormatMessageExceptionSeparateurInconnu = "[Fichier]Format CSV inconnu dans '{0}' : séparateur ';' ou tabulation introuvable ou ambigu dans l'en-tête.";
     private readonly ILogger<LecteurParticipants> _logger;
 
     // Constructeur : 
@@ -57,11 +58,7 @@ internal class LecteurParticipants
         int nbreTabulations = ligneEnTete.Count(c => c == '\t');
 
         // Aucun des deux, ou autant de l'un que de l'autre : on refuse plutôt que de deviner.
-        if (nbrePointsVirgules == nbreTabulations)
-        {
-            throw new InvalidDataException(
-                $"[Fichier]Format CSV inconnu dans '{pCheminCsv}' : séparateur ';' ou tabulation introuvable ou ambigu dans l'en-tête.");
-        }
+        if (nbrePointsVirgules == nbreTabulations){ throw new InvalidDataException(string.Format(FormatMessageExceptionSeparateurInconnu, pCheminCsv));}
 
         string delimiteur = nbrePointsVirgules > nbreTabulations ? ";" : "\t";
         return delimiteur;
