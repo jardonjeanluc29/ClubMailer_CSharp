@@ -9,12 +9,18 @@ sealed class ParticipantMap : ClassMap<Participant>
         "Numéro De Licence",
         "Numero De Licence"
     ];
+
+    public static readonly string[] NomsColonneNom =
+    [
+        "Nom", 
+        "Nom de Famille"
+    ];
     // Optional() pour tous les champs qui ne relèvent pas du MVP
     public ParticipantMap() {
         Map(m => m.Date).Name("Date").Optional();
         Map(m => m.Epreuve).Name("Epreuve", "Épreuve", "Course");
         Map(m => m.Bonnet).Name("N° Bonnet", "N°_Bonnet", "N°Bonnet", "Bonnet").Optional();
-        Map(m => m.Nom).Name("Nom", "Nom de Famille");
+        Map(m => m.Nom).Name(NomsColonneNom);
         Map(m => m.Prenom).Name("Prenom", "Prénom");
         Map(m => m.Email).Name("Email", "Courriel", "Adresse Email", "E-Mail", "Adresse E-Mail");
         Map(m => m.Sexe).Name("Sexe", "Genre").Optional();
