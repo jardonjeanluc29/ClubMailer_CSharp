@@ -1,5 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ClubMailer.Tests;
 
@@ -173,7 +172,94 @@ public class LecteurParticipantsTests
         // Version Simple sans tester la collection des possibles : 
         // string headerManquantAttendu = "N° de licence";
         //Assert.Contains(headerManquantAttendu, resultat.Message, StringComparison.OrdinalIgnoreCase);
+
+        Assert.All(ParticipantMap.NomsColonneLicence, n => Assert.Contains(n, resultat.Message, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Lire_SeparateurInconnu_LanceInvalidDataException()
+    {
+        // Arrange: 
+        string fixturesPath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "format_inconnu_virgule.csv");
+        NullLogger<LecteurParticipants> logger = NullLogger<LecteurParticipants>.Instance;
+        LecteurParticipants _sut = new LecteurParticipants(logger);
+        string attendu = string.Format(LecteurParticipants.FormatMessageExceptionSeparateurInconnu, fixturesPath);
+        // Act:
+        InvalidDataException resultat = Assert.Throws<InvalidDataException>(() => _sut.Lire(fixturesPath));
+        // Assert: 
+        Assert.Contains(attendu, resultat.Message);
+        //Optionnel : 
+        //si on encapsule une exception CsvHelper
+        // Ici on fait directement if() throw new InvalidDataException, il n'y a pas de Catch (InvalidDataException)
+        // /!\/!\ Assert.NotNull(resultat.InnerException); /!\/!\
+    }
+
+    [Fact]
+    public void Lire_EntetesRepetes_RetireLesLignesEnTete()
+    {
+        // Arrange: 
+        string fixturesPath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "format_b_entetes_repetes.csv");
+        NullLogger<LecteurParticipants> logger = NullLogger<LecteurParticipants>.Instance;
+        LecteurParticipants _sut = new LecteurParticipants(logger);
+        int nbreLignesTotal = 7; // Le header ne fait pas partie du nombre total de ligne.
+        int nbreLigneRetirees = 4;
+        int nbreParticipants = 3;
+        // Optionnel : Plus Simple mais Garder DoesNotContain pour gros fichier et éviter de faire un ToList =
+        /*List<Participant> listeParticipantsAttendue = [
+            new Participant{
+                Date = "01/01/2025 10:00",
+                Epreuve = "Course Mock 5 Km",
+                Bonnet = "101",
+                Nom = "MOCKNOM1",
+                Prenom = "Mélina",
+                Email = "alice.mock1@example.com",
+                Sexe = "F",
+                DateDeNaissance = "01/01/2000",
+                Mobile = "0600000001",
+                Licence = "0000001",
+                Club = "CLUB MOCK"
+            },
+            new Participant{
+                Date = "01/01/2025 10:05",
+                Epreuve = "Course Mock 5 Km",
+                Bonnet = "102",
+                Nom = "MOCKNOM2",
+                Prenom = "Rémy",
+                Email = "bruno.mock2@example.com",
+                Sexe = "M",
+                DateDeNaissance = "02/02/2001",
+                Mobile ="",
+                Licence = "0000002",
+                Club ="CLUB MOCK"
+                },
+            new Participant{
+                Date = "01/01/2025 10:10",
+                Epreuve = "Course Mock 10 Km",
+                Bonnet = "103",
+                Nom = "MOCKNOM3",
+                Prenom = "Chlœé",
+                Email = "chloe.mock3@example.com",
+                Sexe = "F",
+                DateDeNaissance = "03/03/2002",
+                Mobile = "0600000003",
+                Licence = "0000003",
+                Club ="CLUB MOCK"
+                }
+        ];*/
         
-        Assert.All(ParticipantMap.NomsColonneLicence, n =>  Assert.Contains(n, resultat.Message, StringComparison.OrdinalIgnoreCase));
+        // Act:
+        ResultatLecture resultat = _sut.Lire(fixturesPath);
+        // Assert: 
+        Assert.Equal(nbreLignesTotal, resultat.LignesTotalFichierBrut);
+        Assert.Equal(nbreLigneRetirees, resultat.NombreLignesRetirees);
+        Assert.Equal(nbreParticipants, resultat.ListeParticipantSansDoublonHeaders.Count);
+
+        // Optionnel : Plus Simple mais Garder DoesNotContain pour gros fichier et éviter de faire un ToList =
+        // Assert.Equivalent(listeParticipantsAttendue, resultat.ListeParticipantSansDoublonHeaders, true);
+
+        Assert.DoesNotContain(resultat.ListeParticipantSansDoublonHeaders, rP => rP.ChampsTextCsvMvp
+            .All(champ => resultat.ListeHeadersCompleteDuFichier
+                .Contains(champ, StringComparer.OrdinalIgnoreCase)));
+        
     }
 }
