@@ -34,4 +34,8 @@ jobs:
 
       # Étape 4 : compile le projet en mode Release, sans refaire la restauration
       - name: Compilation du projet
-        run: dotnet build --no-restore --configuration Release
+        run: dotnet build --no-restore --configuration Release 
+
+      #Étape 5 : On lance les Tests de la CI/CD
+      - name: test
+        run: dotnet test --no-build --configuration Release 
