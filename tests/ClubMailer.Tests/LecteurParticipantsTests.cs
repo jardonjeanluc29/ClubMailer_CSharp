@@ -83,14 +83,14 @@ public class LecteurParticipantsTests
         // Arrange:
         NullLogger<LecteurParticipants> _sut = NullLogger<LecteurParticipants>.Instance;
         // Act:
-        ResultatLecture resultat  = new LecteurParticipants(_sut).Lire(fixturesPath);
-        string delimiteur = resultat .Delimiteur.ToString().ToLowerInvariant();
-        string encodage = resultat .Encodage.ToLowerInvariant();
-        List<string> listeHeadersOptionalDuFichierManquant = resultat .ListeHeadersOptionalDuFichierManquant;
-        string[] listeHeadersCompleteDuFichier = resultat .ListeHeadersCompleteDuFichier;
-        List<Participant> listeParticipantSansDoublonHeaders = resultat .ListeParticipantSansDoublonHeaders;
-        int lignesTotalFichierBrut = resultat .LignesTotalFichierBrut;
-        int nombreLignesRetirees = resultat .NombreLignesRetirees;
+        ResultatLecture resultat = new LecteurParticipants(_sut).Lire(fixturesPath);
+        string delimiteur = resultat.Delimiteur.ToString().ToLowerInvariant();
+        string encodage = resultat.Encodage.ToLowerInvariant();
+        List<string> listeHeadersOptionalDuFichierManquant = resultat.ListeHeadersOptionalDuFichierManquant;
+        string[] listeHeadersCompleteDuFichier = resultat.ListeHeadersCompleteDuFichier;
+        List<Participant> listeParticipantSansDoublonHeaders = resultat.ListeParticipantSansDoublonHeaders;
+        int lignesTotalFichierBrut = resultat.LignesTotalFichierBrut;
+        int nombreLignesRetirees = resultat.NombreLignesRetirees;
         // Assert:
         string delimiteurAttendu = "\t";
         string encodageAttendu = "windows-1252";
@@ -143,5 +143,37 @@ public class LecteurParticipantsTests
         Assert.Equivalent(listeParticipantsAttendue, listeParticipantSansDoublonHeaders, true);
         Assert.Equal(3, lignesTotalFichierBrut);
         Assert.Equal(0, nombreLignesRetirees);
+    }
+
+    [Fact]
+    public void Lire_FichierIntrouvable_LanceFileNotFoundException()
+    {
+        // Arrange:
+        string fixturesPath = Path.Combine(AppContext.BaseDirectory, "fichierFantome.csv");
+        NullLogger<LecteurParticipants> logger = NullLogger<LecteurParticipants>.Instance;
+
+        // Act & Assert:
+        FileNotFoundException _sut = Assert.Throws<FileNotFoundException>(() => new LecteurParticipants(logger).Lire(fixturesPath));
+        string cheminAttendu = fixturesPath;
+        Assert.Equal(cheminAttendu, _sut.FileName);
+    }
+
+    [Fact]
+    public void Lire_ColonneObligatoireManquante_LanceInvalidDataException()
+    {
+        // Arrange: 
+        string fixturesPath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "format_a_sans_licence.csv");
+        NullLogger<LecteurParticipants> logger = NullLogger<LecteurParticipants>.Instance;
+        // Act & Assert
+
+        //INUTILE !! Il faut garder ça comme une étape pour débutant à remetre ensuite dans l Assert, sert à conceptualiser par découpage 
+        // ResultatLecture _sut = new LecteurParticipants(logger).Lire(fixturesPath);
+
+        InvalidDataException resultat = Assert.Throws<InvalidDataException>(() => new LecteurParticipants(logger).Lire(fixturesPath));
+        // Version Simple sans tester la collection des possibles : 
+        // string headerManquantAttendu = "N° de licence";
+        //Assert.Contains(headerManquantAttendu, resultat.Message, StringComparison.OrdinalIgnoreCase);
+        
+        Assert.All(ParticipantMap.NomsColonneLicence, n =>  Assert.Contains(n, resultat.Message, StringComparison.OrdinalIgnoreCase));
     }
 }
